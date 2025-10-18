@@ -4,6 +4,7 @@
 #include <string>
 #include "FEVFMInput.h"
 #include "DisplacementContainer.h"
+#include "DeformationGradientField.h"
 
 /**
  * @brief Abstract base for a scalar optimization variable used by the VFM plugin.
@@ -221,6 +222,16 @@ public:
 	const DisplacementContainer& VirtualData() const { return m_virtual; }
 
 	/**
+	 * @brief Mutable access to the reconstructed deformation gradients.
+	 */
+	DeformationGradientField& DeformationGradients() { return m_defGrad; }
+
+	/**
+	 * @brief Read-only access to the reconstructed deformation gradients.
+	 */
+	const DeformationGradientField& DeformationGradients() const { return m_defGrad; }
+
+	/**
 	 * @brief Solve the forward FE problem with a proposed parameter vector.
 	 * @param a Ordered list of parameter values sourced from the optimizer.
 	 *
@@ -263,4 +274,5 @@ protected:
 	std::vector<FEInputParameterVFM*>	    m_Var; ///< Registered optimization variables (non-owning).
 	DisplacementContainer m_measured; ///< Experimentally measured displacements.
 	DisplacementContainer m_virtual;  ///< User-specified virtual displacement fields.
+	DeformationGradientField m_defGrad; ///< Cached deformation gradients per Gauss point.
 };

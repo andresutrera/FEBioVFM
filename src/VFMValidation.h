@@ -5,6 +5,7 @@
 #pragma once
 
 #include <string>
+#include <algorithm>
 
 #include <FECore/FEModel.h>
 #include <FECore/FEMesh.h>

@@ -262,8 +262,8 @@ include_directories(${FEBio_INC})
 message(STATUS "INCLUDESSSS::::::: ${FEBio_INC}.")
 ##### Add library #####
 
-file(GLOB HDR "src/*.h")
-file(GLOB SRC "src/*.cpp")
+file(GLOB HDR CONFIGURE_DEPENDS "src/*.h")
+file(GLOB SRC CONFIGURE_DEPENDS "src/*.cpp")
 
 add_library(${name} SHARED ${HDR} ${SRC})
 set_property(TARGET ${name} PROPERTY AUTOGEN_BUILD_DIR ${CMAKE_BINARY_DIR}/CMakeFiles/AutoGen/${name}_autogen)

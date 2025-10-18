@@ -7,7 +7,9 @@
 #include <FECore/FECoreKernel.h>
 #include <FECore/FEModel.h>
 #include <FECore/log.h>
+#include <string>
 #include "FEData.h"
+#include "VFMKinematics.h"
 
 /**
  * @brief Default constructor storing the FEBio model reference.
@@ -59,6 +61,16 @@ bool FEVFMTask::Init(const char* szfile)
 	if (!VFMValidation::ValidateDisplacementCounts(*m_opt.GetFEModel(), m_opt, validationError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
+		return false;
+	}
+
+	std::string kinematicsError;
+	if (!VFMKinematics::ComputeDeformationGradients(*m_opt.GetFEModel(),
+		m_opt.MeasuredData(),
+		m_opt.DeformationGradients(),
+		kinematicsError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), kinematicsError.c_str());
 		return false;
 	}
 

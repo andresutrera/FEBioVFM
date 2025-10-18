@@ -63,8 +63,8 @@ public:
 	const std::vector<NodeDisplacement>& Samples() const { return m_data; }
 
 	/**
-	 * @brief Find the measurement associated with a given element ID.
-	 * @param elemId Element identifier to look up.
+	 * @brief Find the measurement associated with a given node ID.
+	 * @param nodeId Node identifier to look up.
 	 * @return Pointer to the measurement or nullptr when not present.
 	 */
 	inline const NodeDisplacement* Find(int nodeId) const
@@ -73,6 +73,20 @@ public:
 			return e.id == nodeId;
 		});
 		return (it != m_data.end() ? &(*it) : nullptr);
+	}
+
+	/**
+	 * @brief Try to obtain the displacement for a node.
+	 * @param nodeId Node identifier (1-based) to look up.
+	 * @param disp Filled with the displacement when found.
+	 * @return true when the displacement is available.
+	 */
+	inline bool TryGet(int nodeId, std::array<double, 3>& disp) const
+	{
+		const NodeDisplacement* entry = Find(nodeId);
+		if (entry == nullptr) return false;
+		disp = entry->displacement;
+		return true;
 	}
 
 private:
