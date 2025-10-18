@@ -125,14 +125,14 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementContainer& container)
 	++tag;
 	do
 	{
-		if (tag == "elem")
+		if (tag == "node")
 		{
 			const char* szId = tag.AttributeValue("id");
-			int elemId = szId ? atoi(szId) : -1;
+			int nodeId = szId ? atoi(szId) : -1;
 			double disp[3] = { 0, 0, 0 };
 			tag.value(disp, 3);
 
-			container.Add(elemId, { disp[0], disp[1], disp[2] });
+			container.Add(nodeId, { disp[0], disp[1], disp[2] });
 		}
 		else throw XMLReader::InvalidTag(tag);
 
@@ -147,7 +147,7 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementContainer& container)
  *
  * @param tag XML tag positioned at <MeasuredDisplacements>.
  *
- * Each child <elem id="..."> tag must provide three floating-point numbers that
+ * Each child <node id="..."> (or legacy <elem id="...">) tag must provide three floating-point numbers that
  * correspond to ux, uy, and uz. Values may be comma-separated or whitespace
  * separated per FEBio's XML parser conventions. The container is cleared before
  * new samples are appended so repeated definitions overwrite previous entries.
@@ -199,15 +199,15 @@ void FEVFMInput::LogDebugSummary() const
 
 	const auto& measuredSamples = m_opt->MeasuredData().Samples();
 	feLogDebugEx(fem, "  Measured displacements (%zu entries)", measuredSamples.size());
-	for (const ElementDisplacement& entry : measuredSamples)
+	for (const NodeDisplacement& entry : measuredSamples)
 	{
-		feLogDebugEx(fem, "    elem %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
+		feLogDebugEx(fem, "    node %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
 	}
 
 	const auto& virtualSamples = m_opt->VirtualData().Samples();
 	feLogDebugEx(fem, "  Virtual displacements (%zu entries)", virtualSamples.size());
-	for (const ElementDisplacement& entry : virtualSamples)
+	for (const NodeDisplacement& entry : virtualSamples)
 	{
-		feLogDebugEx(fem, "    elem %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
+		feLogDebugEx(fem, "    node %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
 	}
 }

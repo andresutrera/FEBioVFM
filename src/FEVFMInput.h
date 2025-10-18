@@ -67,8 +67,9 @@ private:
 		 * @brief Parse the <MeasuredDisplacements> subsection of the optimization input.
 		 * @param tag XML tag positioned at the <MeasuredDisplacements> node.
 		 *
-		 * @note Each <elem id="..."> entry is expected to contain three comma- or
-		 * space-separated floating-point values representing ux, uy, and uz.
+		 * @note Each <node id="..."> entry (or legacy <elem id="...">) is expected to
+		 * contain three comma- or space-separated floating-point values representing
+		 * ux, uy, and uz.
 		 */
 		void ParseMeasuredDisplacements(XMLTag& tag);
 
