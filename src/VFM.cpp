@@ -37,7 +37,6 @@ bool FEVFMTask::Init(const char* szfile)
 {
     feLog("V I R T U A L   F I E L D S   M E T H O D   (setup)\n");
 
-
 	// read the data from the xml input file
 	if (m_opt.Input(szfile) == false) return false;
 
@@ -47,6 +46,19 @@ bool FEVFMTask::Init(const char* szfile)
 	if (ret == false)
 	{
 		feLogErrorEx(m_opt.GetFEModel(), "Failed to initialize the optimization data.");
+		return false;
+	}
+
+	std::string validationError;
+	if (!VFMValidation::ValidateSolidDomains(*m_opt.GetFEModel(), validationError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
+		return false;
+	}
+
+	if (!VFMValidation::ValidateDisplacementCounts(*m_opt.GetFEModel(), m_opt, validationError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
 		return false;
 	}
 
@@ -70,4 +82,3 @@ bool FEVFMTask::Run()
 
     return true;
 }
-

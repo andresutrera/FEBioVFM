@@ -198,30 +198,16 @@ void FEVFMInput::LogDebugSummary() const
 	}
 
 	const auto& measuredSamples = m_opt->MeasuredData().Samples();
-	if (measuredSamples.empty())
+	feLogDebugEx(fem, "  Measured displacements (%zu entries)", measuredSamples.size());
+	for (const ElementDisplacement& entry : measuredSamples)
 	{
-		feLogDebugEx(fem, "  Measured displacements: (none)");
-	}
-	else
-	{
-		feLogDebugEx(fem, "  Measured displacements (%zu entries)", measuredSamples.size());
-		for (const ElementDisplacement& entry : measuredSamples)
-		{
-			feLogDebugEx(fem, "    elem %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
-		}
+		feLogDebugEx(fem, "    elem %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
 	}
 
 	const auto& virtualSamples = m_opt->VirtualData().Samples();
-	if (virtualSamples.empty())
+	feLogDebugEx(fem, "  Virtual displacements (%zu entries)", virtualSamples.size());
+	for (const ElementDisplacement& entry : virtualSamples)
 	{
-		feLogDebugEx(fem, "  Virtual displacements: (none)");
-	}
-	else
-	{
-		feLogDebugEx(fem, "  Virtual displacements (%zu entries)", virtualSamples.size());
-		for (const ElementDisplacement& entry : virtualSamples)
-		{
-			feLogDebugEx(fem, "    elem %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
-		}
+		feLogDebugEx(fem, "    elem %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
 	}
 }

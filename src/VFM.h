@@ -4,6 +4,7 @@
 
 #include <FECore/FECoreTask.h>
 #include "FEData.h"
+#include "VFMValidation.h"
 
 /**
  * @brief Lightweight context shared across the Virtual Fields Method workflow.
