@@ -6,6 +6,7 @@
 
 #include <string>
 #include <algorithm>
+#include <cmath>
 
 #include <FECore/FEModel.h>
 #include <FECore/FEMesh.h>
@@ -56,19 +57,56 @@ public:
 	{
 		const int nodeCount = fem.GetMesh().Nodes();
 
-		const size_t measuredCount = data.MeasuredData().Size();
-		const size_t virtualCount = data.VirtualData().Size();
+		const auto& measuredHistory = data.MeasuredHistory();
+		const auto& virtualHistory = data.VirtualHistory();
 
-		if ((int)measuredCount != nodeCount)
+		if (measuredHistory.Empty())
 		{
-			errorMessage = "Measured displacement count (" + std::to_string(measuredCount) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
+			errorMessage = "Measured displacement history is empty.";
 			return false;
 		}
 
-		if ((int)virtualCount != nodeCount)
+		if (virtualHistory.Empty())
 		{
-			errorMessage = "Virtual displacement count (" + std::to_string(virtualCount) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
+			errorMessage = "Virtual displacement history is empty.";
 			return false;
+		}
+
+		if (measuredHistory.Steps() != virtualHistory.Steps())
+		{
+			errorMessage = "Measured and virtual displacement histories contain a different number of time steps.";
+			return false;
+		}
+
+		for (size_t i = 0; i < measuredHistory.Steps(); ++i)
+		{
+			const double tm = measuredHistory.StepAt(i).time;
+			const double tv = virtualHistory.StepAt(i).time;
+			if (std::fabs(tm - tv) > 1e-12)
+			{
+				errorMessage = "Measured and virtual displacement histories do not share the same time sequence.";
+				return false;
+			}
+		}
+
+		for (const auto& step : measuredHistory.StepsRef())
+		{
+			const size_t count = step.displacements.Size();
+			if ((int)count != nodeCount)
+			{
+				errorMessage = "Measured displacement count at time " + std::to_string(step.time) + " (" + std::to_string(count) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
+				return false;
+			}
+		}
+
+		for (const auto& step : virtualHistory.StepsRef())
+		{
+			const size_t count = step.displacements.Size();
+			if ((int)count != nodeCount)
+			{
+				errorMessage = "Virtual displacement count at time " + std::to_string(step.time) + " (" + std::to_string(count) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
+				return false;
+			}
 		}
 
 		return true;

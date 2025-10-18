@@ -3,6 +3,7 @@
 #include <FEBioXML/xmltool.h>
 #include <FECore/FECoreKernel.h>
 #include <cstdlib>
+#include <iostream>
 #include "FEData.h"
 //=============================================================================
 // FEVFMInput
@@ -46,15 +47,40 @@ bool FEVFMInput::Input(const char* szfile, FEOptimizeDataVFM* pOpt)
 	// process the file
 	bool ret = true;
 	try {
-		++tag;
-		do
+	++tag;
+	while (!tag.isend())
+	{
+		std::cout << "Processing tag: " << tag.Name() << std::endl;
+
+		if (tag.Name()[0] == '#')
 		{
-			if (tag == "Parameters" ) ParseParameters(tag);
-			else if (tag == "MeasuredDisplacements") ParseMeasuredDisplacements(tag);
-			else if (tag == "VirtualDisplacements") ParseVirtualDisplacements(tag);
-			else throw XMLReader::InvalidTag(tag);
+			tag.skip();
 			++tag;
-		} while (!tag.isend());
+			continue;
+		}
+
+		if (tag == "Parameters")
+		{
+			ParseParameters(tag);
+			tag.skip();
+		}
+		else if (tag == "MeasuredDisplacements")
+		{
+			ParseMeasuredDisplacements(tag);
+			tag.skip();
+		}
+		else if (tag == "VirtualDisplacements")
+		{
+			ParseVirtualDisplacements(tag);
+			tag.skip();
+		}
+		else
+		{
+			throw XMLReader::InvalidTag(tag);
+		}
+
+		++tag;
+	}
 	}
 	catch (...)
 	{
@@ -118,26 +144,72 @@ void FEVFMInput::ParseParameters(XMLTag& tag)
 namespace {
 
 // Helper that parses either measured or virtual displacement blocks.
-void ParseDisplacementBlock(XMLTag& tag, DisplacementContainer& container)
+void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
 {
-	container.Clear();
+	std::cout << "VFM parse: clearing displacement history" << std::endl;
+	history.Clear();
 
-	++tag;
-	do
+	auto parseNode = [](XMLTag& nodeTag, DisplacementContainer& container)
 	{
-		if (tag == "node")
+		const char* szId = nodeTag.AttributeValue("id");
+		int nodeId = szId ? atoi(szId) : -1;
+		double disp[3] = { 0, 0, 0 };
+		nodeTag.value(disp, 3);
+		container.Add(nodeId, { disp[0], disp[1], disp[2] });
+		std::cout << "  node " << nodeId << " -> (" << disp[0] << ", " << disp[1] << ", " << disp[2] << ")" << std::endl;
+	};
+
+	XMLTag timeTag(tag);
+	++timeTag;
+	bool found = false;
+	int timeIndex = 0;
+	while (!timeTag.isend())
+	{
+		if (timeTag == "time")
 		{
-			const char* szId = tag.AttributeValue("id");
-			int nodeId = szId ? atoi(szId) : -1;
-			double disp[3] = { 0, 0, 0 };
-			tag.value(disp, 3);
+			found = true;
+			double timeValue = 0.0;
+			timeTag.AttributeValue("t", timeValue, true);
+			auto& step = history.AddStep(timeValue);
+			std::cout << "VFM parse: created time step " << timeIndex++ << " at t = " << timeValue << std::endl;
 
-			container.Add(nodeId, { disp[0], disp[1], disp[2] });
+			XMLTag nodeTag = timeTag;
+			++nodeTag;
+			int nodeIndex = 0;
+			while (!nodeTag.isend())
+			{
+				if ((nodeTag == "node") || (nodeTag == "elem"))
+				{
+					std::cout << "  parsing node index " << nodeIndex++ << std::endl;
+					parseNode(nodeTag, step.displacements);
+				}
+				else
+				{
+					std::cout << "  encountered unexpected tag <" << nodeTag.Name() << ">" << std::endl;
+					throw XMLReader::InvalidTag(nodeTag);
+				}
+
+				nodeTag.skip();
+				++nodeTag;
+			}
 		}
-		else throw XMLReader::InvalidTag(tag);
+		else
+		{
+			std::cout << "VFM parse: skipping non-time tag <" << timeTag.Name() << ">" << std::endl;
+		}
 
-		++tag;
-	} while (!tag.isend());
+		timeTag.skip();
+		++timeTag;
+	}
+
+	if (!found)
+	{
+		std::cout << "VFM parse: no <time> entries detected, aborting" << std::endl;
+		throw XMLReader::InvalidTag(tag);
+	}
+
+	history.SetActiveStepByIndex(0);
+	std::cout << "VFM parse: active step set to index 0 (t = " << history.ActiveStep().time << ")" << std::endl;
 }
 
 } // namespace
@@ -154,7 +226,9 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementContainer& container)
  */
 void FEVFMInput::ParseMeasuredDisplacements(XMLTag& tag)
 {
-	ParseDisplacementBlock(tag, m_opt->MeasuredData());
+    std::cout << "ParseMeasuredDisplacements begin" << std::endl;
+ 	ParseDisplacementBlock(tag, m_opt->MeasuredHistory());
+    std::cout << "ParseMeasuredDisplacements end" << std::endl;
 }
 
 /**
@@ -167,7 +241,9 @@ void FEVFMInput::ParseMeasuredDisplacements(XMLTag& tag)
  */
 void FEVFMInput::ParseVirtualDisplacements(XMLTag& tag)
 {
-	ParseDisplacementBlock(tag, m_opt->VirtualData());
+    std::cout << "ParseVirtualDisplacements begin" << std::endl;
+	ParseDisplacementBlock(tag, m_opt->VirtualHistory());
+    std::cout << "ParseVirtualDisplacements end" << std::endl;
 }
 
 /**
@@ -197,17 +273,25 @@ void FEVFMInput::LogDebugSummary() const
 		feLogDebugEx(fem, "    %-20s init=%-12g min=%-12g max=%-12g", name.c_str(), initVal, minVal, maxVal);
 	}
 
-	const auto& measuredSamples = m_opt->MeasuredData().Samples();
-	feLogDebugEx(fem, "  Measured displacements (%zu entries)", measuredSamples.size());
-	for (const NodeDisplacement& entry : measuredSamples)
+	const auto& measuredHistory = m_opt->MeasuredHistory();
+	feLogDebugEx(fem, "  Measured displacement steps: %zu", measuredHistory.Steps());
+	for (const auto& step : measuredHistory.StepsRef())
 	{
-		feLogDebugEx(fem, "    node %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
+		feLogDebugEx(fem, "    t = %-12g (%zu entries)", step.time, step.displacements.Size());
+		for (const NodeDisplacement& entry : step.displacements.Samples())
+		{
+			feLogDebugEx(fem, "      node %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
+		}
 	}
 
-	const auto& virtualSamples = m_opt->VirtualData().Samples();
-	feLogDebugEx(fem, "  Virtual displacements (%zu entries)", virtualSamples.size());
-	for (const NodeDisplacement& entry : virtualSamples)
+	const auto& virtualHistory = m_opt->VirtualHistory();
+	feLogDebugEx(fem, "  Virtual displacement steps: %zu", virtualHistory.Steps());
+	for (const auto& step : virtualHistory.StepsRef())
 	{
-		feLogDebugEx(fem, "    node %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
+		feLogDebugEx(fem, "    t = %-12g (%zu entries)", step.time, step.displacements.Size());
+		for (const NodeDisplacement& entry : step.displacements.Samples())
+		{
+			feLogDebugEx(fem, "      node %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
+		}
 	}
 }

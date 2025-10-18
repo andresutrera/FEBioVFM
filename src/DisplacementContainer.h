@@ -14,6 +14,7 @@
 #include <vector>
 #include <cstddef>
 #include <algorithm>
+#include <cmath>
 
 /**
  * @brief Represents displacement data associated with a single mesh node.
@@ -91,4 +92,109 @@ public:
 
 private:
 	std::vector<NodeDisplacement> m_data; ///< Insertion-ordered displacement samples.
+};
+
+/**
+ * @brief Time history wrapper that stores displacement containers for multiple steps.
+ */
+class DisplacementHistory
+{
+public:
+	struct TimeStep
+	{
+		double time = 0.0;
+		DisplacementContainer displacements;
+	};
+
+	/// Remove all steps.
+	inline void Clear()
+	{
+		m_steps.clear();
+		m_active = 0;
+	}
+
+	/// Append a new time step (steps are stored in insertion order).
+	inline TimeStep& AddStep(double time)
+	{
+		TimeStep step;
+		step.time = time;
+		m_steps.push_back(std::move(step));
+		return m_steps.back();
+	}
+
+	/// Remove all steps and reserve storage.
+	inline void Reserve(size_t count) { m_steps.reserve(count); }
+
+	/// Number of stored time steps.
+	inline size_t Steps() const { return m_steps.size(); }
+
+	/// True when no time steps are present.
+	inline bool Empty() const { return m_steps.empty(); }
+
+	/// Access a particular step (throws when out of bounds).
+	inline TimeStep& StepAt(size_t index) { return m_steps.at(index); }
+	inline const TimeStep& StepAt(size_t index) const { return m_steps.at(index); }
+
+	/// Set active step by index (silently clamps if index exceeds available steps).
+	inline void SetActiveStepByIndex(size_t index)
+	{
+		if (m_steps.empty())
+		{
+			m_active = 0;
+		}
+		else
+		{
+			m_active = (index < m_steps.size()) ? index : (m_steps.size() - 1);
+		}
+	}
+
+	/// Find an existing step by time value within a tolerance.
+	inline TimeStep* FindStepByTime(double time, double tol = 1e-12)
+	{
+		for (auto& step : m_steps)
+		{
+			if (std::fabs(step.time - time) <= tol) return &step;
+		}
+		return nullptr;
+	}
+
+	inline const TimeStep* FindStepByTime(double time, double tol = 1e-12) const
+	{
+		for (const auto& step : m_steps)
+		{
+			if (std::fabs(step.time - time) <= tol) return &step;
+		}
+		return nullptr;
+	}
+
+	/// Access the active step (creates an empty step when none exist).
+	inline TimeStep& ActiveStep()
+	{
+		if (m_steps.empty())
+		{
+			m_steps.push_back(TimeStep{});
+		}
+		if (m_active >= m_steps.size()) m_active = 0;
+		return m_steps[m_active];
+	}
+
+	/// Const access to the active step (returns a static empty step when no data exist).
+	inline const TimeStep& ActiveStep() const
+	{
+		if (m_steps.empty())
+		{
+			static const TimeStep empty;
+			return empty;
+		}
+		size_t idx = (m_active < m_steps.size()) ? m_active : 0;
+		return m_steps[idx];
+	}
+
+	/// Direct access to the underlying storage.
+	inline std::vector<TimeStep>& StepsRef() { return m_steps; }
+	inline const std::vector<TimeStep>& StepsRef() const { return m_steps; }
+
+private:
+	std::vector<TimeStep> m_steps;
+	size_t m_active = 0;
 };

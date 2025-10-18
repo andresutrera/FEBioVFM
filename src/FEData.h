@@ -202,24 +202,28 @@ public:
 	FEModel* GetFEModel() { return m_fem; }
 
 	/**
-	 * @brief Mutable access to the measured displacement data set.
+	 * @brief Access the full measured displacement history.
 	 */
-	DisplacementContainer& MeasuredData() { return m_measured; }
+	DisplacementHistory& MeasuredHistory() { return m_measured; }
+	const DisplacementHistory& MeasuredHistory() const { return m_measured; }
 
 	/**
-	 * @brief Read-only access to the measured displacement data set.
+	 * @brief Access the active measured displacement set.
 	 */
-	const DisplacementContainer& MeasuredData() const { return m_measured; }
+	DisplacementContainer& MeasuredData() { return m_measured.ActiveStep().displacements; }
+	const DisplacementContainer& MeasuredData() const { return m_measured.ActiveStep().displacements; }
 
 	/**
-	 * @brief Mutable access to the prescribed virtual displacement fields.
+	 * @brief Access the full virtual displacement history.
 	 */
-	DisplacementContainer& VirtualData() { return m_virtual; }
+	DisplacementHistory& VirtualHistory() { return m_virtual; }
+	const DisplacementHistory& VirtualHistory() const { return m_virtual; }
 
 	/**
-	 * @brief Read-only access to the prescribed virtual displacement fields.
+	 * @brief Access the active virtual displacement set.
 	 */
-	const DisplacementContainer& VirtualData() const { return m_virtual; }
+	DisplacementContainer& VirtualData() { return m_virtual.ActiveStep().displacements; }
+	const DisplacementContainer& VirtualData() const { return m_virtual.ActiveStep().displacements; }
 
 	/**
 	 * @brief Mutable access to the reconstructed deformation gradients.
@@ -272,7 +276,7 @@ public:
 protected:
 	FEModel*	m_fem;   ///< FEBio model associated with the optimization run.
 	std::vector<FEInputParameterVFM*>	    m_Var; ///< Registered optimization variables (non-owning).
-	DisplacementContainer m_measured; ///< Experimentally measured displacements.
-	DisplacementContainer m_virtual;  ///< User-specified virtual displacement fields.
+	DisplacementHistory m_measured; ///< Experimentally measured displacement history.
+	DisplacementHistory m_virtual;  ///< Prescribed virtual displacement history.
 	DeformationGradientField m_defGrad; ///< Cached deformation gradients per Gauss point.
 };
