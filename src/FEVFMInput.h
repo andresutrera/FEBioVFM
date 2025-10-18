@@ -31,10 +31,11 @@ class FEOptimizeDataVFM;
 /**
  * @brief Reader for Virtual Fields Method optimization input files.
  *
- * This helper extracts parameter definitions from the XML format used by the
- * original FEBio optimization module and forwards the results to
- * FEOptimizeDataVFM. The current implementation only parses the <Parameters>
- * section, mirroring the limited data required by the experimental scaffold.
+	 * This helper extracts parameter definitions from the XML format used by the
+	 * original FEBio optimization module and forwards the results to
+	 * FEOptimizeDataVFM. It currently understands <Parameters>, <MeasuredDisplacements>,
+	 * and <VirtualDisplacements>, mirroring the limited data required by the experimental
+	 * scaffold.
  *
  * @note Additional sections (objective functions, constraints, etc.) can be
  * introduced later without changing the ownership model; the parser already
@@ -52,16 +53,34 @@ public:
 	bool Input(const char* szfile, FEOptimizeDataVFM* pOpt);
 
 private:
-	/**
-	 * @brief Parse the <Parameters> subsection of the optimization input.
-	 * @param tag XML tag positioned at the <Parameters> node.
-	 *
-	 * @note The routine instantiates FEModelParameterVFM objects dynamically and
-	 * leaves ownership with FEOptimizeDataVFM, mimicking the behaviour of the
-	 * legacy plugin for compatibility.
-	 */
-	void ParseParameters(XMLTag& tag);
+		/**
+		 * @brief Parse the <Parameters> subsection of the optimization input.
+		 * @param tag XML tag positioned at the <Parameters> node.
+		 *
+		 * @note The routine instantiates FEModelParameterVFM objects dynamically and
+		 * leaves ownership with FEOptimizeDataVFM, mimicking the behaviour of the
+		 * legacy plugin for compatibility.
+		 */
+		void ParseParameters(XMLTag& tag);
+
+		/**
+		 * @brief Parse the <MeasuredDisplacements> subsection of the optimization input.
+		 * @param tag XML tag positioned at the <MeasuredDisplacements> node.
+		 *
+		 * @note Each <elem id="..."> entry is expected to contain three comma- or
+		 * space-separated floating-point values representing ux, uy, and uz.
+		 */
+		void ParseMeasuredDisplacements(XMLTag& tag);
+
+		/**
+		 * @brief Parse the <VirtualDisplacements> subsection of the optimization input.
+		 * @param tag XML tag positioned at the <VirtualDisplacements> node.
+		 *
+		 * @note Virtual fields follow the same format as measured displacements and
+		 * drive the inverse analysis portion of the VFM workflow.
+		 */
+		void ParseVirtualDisplacements(XMLTag& tag);
 
 private:
-	FEOptimizeDataVFM*	m_opt; ///< Destination optimization container populated during parsing.
-};
+		FEOptimizeDataVFM*	m_opt; ///< Destination optimization container populated during parsing.
+	};
