@@ -228,12 +228,15 @@ public:
 	/**
 	 * @brief Mutable access to the reconstructed deformation gradients.
 	 */
-	DeformationGradientField& DeformationGradients() { return m_defGrad; }
+	DeformationGradientField& DeformationGradients() { return m_defGradHistory.ActiveStep().field; }
 
 	/**
 	 * @brief Read-only access to the reconstructed deformation gradients.
 	 */
-	const DeformationGradientField& DeformationGradients() const { return m_defGrad; }
+	const DeformationGradientField& DeformationGradients() const { return m_defGradHistory.ActiveStep().field; }
+
+	DeformationGradientHistory& DeformationHistory() { return m_defGradHistory; }
+	const DeformationGradientHistory& DeformationHistory() const { return m_defGradHistory; }
 
 	/**
 	 * @brief Solve the forward FE problem with a proposed parameter vector.
@@ -278,5 +281,5 @@ protected:
 	std::vector<FEInputParameterVFM*>	    m_Var; ///< Registered optimization variables (non-owning).
 	DisplacementHistory m_measured; ///< Experimentally measured displacement history.
 	DisplacementHistory m_virtual;  ///< Prescribed virtual displacement history.
-	DeformationGradientField m_defGrad; ///< Cached deformation gradients per Gauss point.
+	DeformationGradientHistory m_defGradHistory; ///< Deformation gradient history.
 };

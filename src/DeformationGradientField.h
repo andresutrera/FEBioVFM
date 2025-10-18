@@ -52,3 +52,76 @@ public:
 private:
 	std::vector<GaussPointDeformation> m_data;
 };
+
+/**
+ * @brief Timeline wrapper around deformation gradients per time step.
+ */
+class DeformationGradientHistory
+{
+public:
+	struct TimeStep
+	{
+		double time = 0.0;
+		DeformationGradientField field;
+	};
+
+	void Clear()
+	{
+		m_steps.clear();
+		m_active = 0;
+	}
+
+	TimeStep& AddStep(double time)
+	{
+		TimeStep step;
+		step.time = time;
+		m_steps.push_back(std::move(step));
+		return m_steps.back();
+	}
+
+	size_t Steps() const { return m_steps.size(); }
+	bool Empty() const { return m_steps.empty(); }
+
+	TimeStep& StepAt(size_t index) { return m_steps.at(index); }
+	const TimeStep& StepAt(size_t index) const { return m_steps.at(index); }
+
+	void SetActiveStepByIndex(size_t index)
+	{
+		if (m_steps.empty())
+		{
+			m_active = 0;
+		}
+		else
+		{
+			m_active = (index < m_steps.size()) ? index : (m_steps.size() - 1);
+		}
+	}
+
+	TimeStep& ActiveStep()
+	{
+		if (m_steps.empty())
+		{
+			m_steps.push_back(TimeStep{});
+		}
+		if (m_active >= m_steps.size()) m_active = 0;
+		return m_steps[m_active];
+	}
+
+	const TimeStep& ActiveStep() const
+	{
+		if (m_steps.empty())
+		{
+			static const TimeStep empty;
+			return empty;
+		}
+		size_t idx = (m_active < m_steps.size()) ? m_active : 0;
+		return m_steps[idx];
+	}
+
+	std::vector<TimeStep>& StepsRef() { return m_steps; }
+	const std::vector<TimeStep>& StepsRef() const { return m_steps; }
+
+private:
+	std::vector<TimeStep> m_steps;
+	size_t m_active = 0;
+};

@@ -59,19 +59,37 @@ bool FEVFMTask::Init(const char* szfile)
 		return false;
 	}
 
+
+	// compute deformation gradients for each time step
+	for (size_t i = 0; i < m_opt.MeasuredHistory().Steps(); ++i)
+	{
+		m_opt.MeasuredHistory().SetActiveStepByIndex(i);
+		m_opt.VirtualHistory().SetActiveStepByIndex(i);
+		// ensure deformation history has a matching step
+		if (m_opt.DeformationHistory().Steps() <= i)
+		{
+			auto& step = m_opt.DeformationHistory().AddStep(m_opt.MeasuredHistory().StepAt(i).time);
+			step.field.Clear();
+		}
+		m_opt.DeformationHistory().SetActiveStepByIndex(i);
+
+		std::string kinematicsError;
+		if (!VFMKinematics::ComputeDeformationGradients(*m_opt.GetFEModel(),
+			m_opt.MeasuredData(),
+			m_opt.DeformationGradients(),
+			kinematicsError))
+		{
+			feLogErrorEx(m_opt.GetFEModel(), kinematicsError.c_str());
+			return false;
+		}
+
+		feLog("VFM: computed deformation gradients for t = %g\n", m_opt.DeformationHistory().ActiveStep().time);
+	}
+
+
 	if (!VFMValidation::ValidateDisplacementCounts(*m_opt.GetFEModel(), m_opt, validationError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
-		return false;
-	}
-
-	std::string kinematicsError;
-	if (!VFMKinematics::ComputeDeformationGradients(*m_opt.GetFEModel(),
-		m_opt.MeasuredData(),
-		m_opt.DeformationGradients(),
-		kinematicsError))
-	{
-		feLogErrorEx(m_opt.GetFEModel(), kinematicsError.c_str());
 		return false;
 	}
 
@@ -93,9 +111,9 @@ bool FEVFMTask::Init(const char* szfile)
 	std::string exportError;
 	if (!ExportVFMKinematics(plotPath,
 		*m_opt.GetFEModel(),
-		m_opt.MeasuredData(),
-		m_opt.VirtualData(),
-		m_opt.DeformationGradients(),
+		m_opt.MeasuredHistory(),
+		m_opt.VirtualHistory(),
+		m_opt.DeformationHistory(),
 		exportError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());

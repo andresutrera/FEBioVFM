@@ -78,35 +78,46 @@ public:
 			return false;
 		}
 
+		if (measuredHistory.Steps() != data.DeformationHistory().Steps())
+		{
+			errorMessage = "Deformation gradient history does not match displacement histories.";
+			return false;
+		}
+
 		for (size_t i = 0; i < measuredHistory.Steps(); ++i)
 		{
 			const double tm = measuredHistory.StepAt(i).time;
 			const double tv = virtualHistory.StepAt(i).time;
-			if (std::fabs(tm - tv) > 1e-12)
+			const double tf = data.DeformationHistory().StepAt(i).time;
+			if (std::fabs(tm - tv) > 1e-12 || std::fabs(tm - tf) > 1e-12)
 			{
-				errorMessage = "Measured and virtual displacement histories do not share the same time sequence.";
+				errorMessage = "Measured, virtual, and deformation gradient histories do not share the same time sequence.";
 				return false;
 			}
 		}
 
-		for (const auto& step : measuredHistory.StepsRef())
+		for (size_t i = 0; i < measuredHistory.Steps(); ++i)
 		{
-			const size_t count = step.displacements.Size();
-			if ((int)count != nodeCount)
-			{
-				errorMessage = "Measured displacement count at time " + std::to_string(step.time) + " (" + std::to_string(count) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
-				return false;
-			}
-		}
+			const auto& measStep = measuredHistory.StepAt(i);
+			const auto& virtStep = virtualHistory.StepAt(i);
+			const auto& defStep = data.DeformationHistory().StepAt(i);
 
-		for (const auto& step : virtualHistory.StepsRef())
-		{
-			const size_t count = step.displacements.Size();
-			if ((int)count != nodeCount)
+			const size_t countMeasured = measStep.displacements.Size();
+			const size_t countVirtual = virtStep.displacements.Size();
+
+			if ((int)countMeasured != nodeCount)
 			{
-				errorMessage = "Virtual displacement count at time " + std::to_string(step.time) + " (" + std::to_string(count) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
+				errorMessage = "Measured displacement count at time " + std::to_string(measStep.time) + " (" + std::to_string(countMeasured) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
 				return false;
 			}
+
+			if ((int)countVirtual != nodeCount)
+			{
+				errorMessage = "Virtual displacement count at time " + std::to_string(virtStep.time) + " (" + std::to_string(countVirtual) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
+				return false;
+			}
+
+			// Deformation gradients are stored per element, so no node-count check here.
 		}
 
 		return true;

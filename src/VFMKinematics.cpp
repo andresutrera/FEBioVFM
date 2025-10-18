@@ -102,67 +102,61 @@ bool ComputeDefGrad(
 } // namespace
 
 bool VFMKinematics::ComputeDeformationGradients(FEModel& fem,
-	const DisplacementContainer& displacements,
-	DeformationGradientField& outField,
-	std::string& errorMessage)
+    const DisplacementContainer& displacements,
+    DeformationGradientField& outField,
+    std::string& errorMessage)
 {
-	outField.Clear();
+    outField.Clear();
 
-	FEMesh& mesh = fem.GetMesh();
+    FEMesh& mesh = fem.GetMesh();
 
-	// Look all domains
-	const int domainCount = mesh.Domains();
-	for (int domIdx = 0; domIdx < domainCount; ++domIdx)
-	{
+    const int domainCount = mesh.Domains();
+    for (int domIdx = 0; domIdx < domainCount; ++domIdx)
+    {
+        FEDomain& domain = mesh.Domain(domIdx);
+        auto* solidDomain = dynamic_cast<FESolidDomain*>(&domain);
+        if (solidDomain == nullptr) continue;
 
-		FEDomain& domain = mesh.Domain(domIdx);
-		auto* solidDomain = dynamic_cast<FESolidDomain*>(&domain);
-		if (solidDomain == nullptr) continue;
+        const int elemCount = solidDomain->Elements();
+        for (int elemIdx = 0; elemIdx < elemCount; ++elemIdx)
+        {
+            FESolidElement& el = static_cast<FESolidElement&>(solidDomain->ElementRef(elemIdx));
+            const int neln = el.Nodes();
 
-		// Look domain elements
-		const int elemCount = solidDomain->Elements();
-		for (int elemIdx = 0; elemIdx < elemCount; ++elemIdx)
-		{
-			FESolidElement& el = static_cast<FESolidElement&>(solidDomain->ElementRef(elemIdx));
-			const int neln = el.Nodes();
+            std::vector<vec3d> displacementsVec(neln);
+            for (int i = 0; i < neln; ++i)
+            {
+                const int nodeIndex = el.m_node[i];
+                const int nodeId = mesh.Node(nodeIndex).GetID();
+                std::array<double, 3> disp{};
+                if (!displacements.TryGet(nodeId, disp))
+                {
+                    errorMessage = "Missing displacement entry for node " + std::to_string(nodeId) + ".";
+                    return false;
+                }
 
-			std::vector<vec3d> displacementsVec(neln);
-			// Look element nodes
-			for (int i = 0; i < neln; ++i)
-			{
-				const int nodeIndex = el.m_node[i];
-				const int nodeId = mesh.Node(nodeIndex).GetID();
-				std::array<double, 3> disp{};
-				if (!displacements.TryGet(nodeId, disp))
-				{
-					errorMessage = "Missing displacement entry for node " + std::to_string(nodeId) + ".";
-					return false;
-				}
+                displacementsVec[i] = vec3d(disp[0], disp[1], disp[2]);
+            }
 
-				const vec3d u(disp[0], disp[1], disp[2]);
-				displacementsVec[i] = u;
-			}
+            GaussPointDeformation gpData;
+            gpData.elementId = el.GetID();
+            const int nint = el.GaussPoints();
+            gpData.gradients.resize(nint);
 
-			GaussPointDeformation gpData;
-			gpData.elementId = el.GetID();
-			const int nint = el.GaussPoints();
-			gpData.gradients.resize(nint);
+            for (int n = 0; n < nint; ++n)
+            {
+                mat3d F;
+                if (!ComputeDefGrad(*solidDomain, fem, el, displacementsVec, n, F, errorMessage))
+                {
+                    errorMessage += " Element ID: " + std::to_string(gpData.elementId) + ", integration point: " + std::to_string(n);
+                    return false;
+                }
+                gpData.gradients[n] = F;
+            }
 
-			// For every gauss point
-			for (int n = 0; n < nint; ++n)
-			{
-				mat3d F;
-				if (!ComputeDefGrad(*solidDomain, fem, el, displacementsVec, n, F, errorMessage))
-				{
-					errorMessage += " Element ID: " + std::to_string(gpData.elementId) + ", integration point: " + std::to_string(n);
-					return false;
-				}
-				gpData.gradients[n] = F;
-			}
+            outField.Add(std::move(gpData));
+        }
+    }
 
-			outField.Add(std::move(gpData));
-		}
-	}
-
-	return true;
+    return true;
 }

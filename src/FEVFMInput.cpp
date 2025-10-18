@@ -50,7 +50,6 @@ bool FEVFMInput::Input(const char* szfile, FEOptimizeDataVFM* pOpt)
 	++tag;
 	while (!tag.isend())
 	{
-		std::cout << "Processing tag: " << tag.Name() << std::endl;
 
 		if (tag.Name()[0] == '#')
 		{
@@ -146,7 +145,6 @@ namespace {
 // Helper that parses either measured or virtual displacement blocks.
 void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
 {
-	std::cout << "VFM parse: clearing displacement history" << std::endl;
 	history.Clear();
 
 	auto parseNode = [](XMLTag& nodeTag, DisplacementContainer& container)
@@ -156,7 +154,6 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
 		double disp[3] = { 0, 0, 0 };
 		nodeTag.value(disp, 3);
 		container.Add(nodeId, { disp[0], disp[1], disp[2] });
-		std::cout << "  node " << nodeId << " -> (" << disp[0] << ", " << disp[1] << ", " << disp[2] << ")" << std::endl;
 	};
 
 	XMLTag timeTag(tag);
@@ -171,7 +168,6 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
 			double timeValue = 0.0;
 			timeTag.AttributeValue("t", timeValue, true);
 			auto& step = history.AddStep(timeValue);
-			std::cout << "VFM parse: created time step " << timeIndex++ << " at t = " << timeValue << std::endl;
 
 			XMLTag nodeTag = timeTag;
 			++nodeTag;
@@ -180,12 +176,10 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
 			{
 				if ((nodeTag == "node") || (nodeTag == "elem"))
 				{
-					std::cout << "  parsing node index " << nodeIndex++ << std::endl;
 					parseNode(nodeTag, step.displacements);
 				}
 				else
 				{
-					std::cout << "  encountered unexpected tag <" << nodeTag.Name() << ">" << std::endl;
 					throw XMLReader::InvalidTag(nodeTag);
 				}
 
@@ -195,7 +189,6 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
 		}
 		else
 		{
-			std::cout << "VFM parse: skipping non-time tag <" << timeTag.Name() << ">" << std::endl;
 		}
 
 		timeTag.skip();
@@ -204,12 +197,10 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
 
 	if (!found)
 	{
-		std::cout << "VFM parse: no <time> entries detected, aborting" << std::endl;
 		throw XMLReader::InvalidTag(tag);
 	}
 
 	history.SetActiveStepByIndex(0);
-	std::cout << "VFM parse: active step set to index 0 (t = " << history.ActiveStep().time << ")" << std::endl;
 }
 
 } // namespace
@@ -226,9 +217,7 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
  */
 void FEVFMInput::ParseMeasuredDisplacements(XMLTag& tag)
 {
-    std::cout << "ParseMeasuredDisplacements begin" << std::endl;
  	ParseDisplacementBlock(tag, m_opt->MeasuredHistory());
-    std::cout << "ParseMeasuredDisplacements end" << std::endl;
 }
 
 /**
@@ -241,9 +230,7 @@ void FEVFMInput::ParseMeasuredDisplacements(XMLTag& tag)
  */
 void FEVFMInput::ParseVirtualDisplacements(XMLTag& tag)
 {
-    std::cout << "ParseVirtualDisplacements begin" << std::endl;
 	ParseDisplacementBlock(tag, m_opt->VirtualHistory());
-    std::cout << "ParseVirtualDisplacements end" << std::endl;
 }
 
 /**
