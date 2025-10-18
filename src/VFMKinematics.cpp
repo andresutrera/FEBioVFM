@@ -16,22 +16,29 @@
 
 namespace {
 
-/*
- * The deformation gradient is reconstructed directly from the nodal displacement
- * field without mutating the FEBio mesh.  Given displacements \f$\mathbf{u}_i\f$
- * defined at the element nodes and the reference gradients of the shape
- * functions \f$\nabla_X N_i\f$, the classical Total Lagrangian relation
+/**
+ * \brief Reconstruct the deformation gradient purely from nodal displacements.
  *
+ * The computation follows the Total Lagrangian relation
  * \f[
- *   \mathbf{F} = \mathbf{I} + \sum_{i=1}^{n_{\text{eln}}} \mathbf{u}_i \otimes
- *   \nabla_X N_i
+ *   \mathbf{F} = \mathbf{I} + \sum_{i=1}^{n_{\mathrm{eln}}} \mathbf{u}_i \otimes \nabla_X N_i,
  * \f]
+ * where \f$\mathbf{u}_i\f$ denotes the nodal displacement vectors and
+ * \f$\nabla_X N_i\f$ the gradients of the shape functions with respect to the
+ * reference configuration. The gradients are assembled using the inverse
+ * reference Jacobian \f$\mathbf{J}_0^{-1}\f$ obtained via
+ * `FESolidDomain::invjac0`. When all displacements are zero the summation
+ * vanishes and \f$\mathbf{F} = \mathbf{I}\f`, providing an immediate
+ * consistency check.
  *
- * is applied at every Gauss point.  The reference gradients are obtained from
- * the inverse Jacobian \f$\mathbf{J}_0^{-1}\f$ (evaluated in the reference
- * configuration via \c invjac0).  When all displacements are zero the summation
- * vanishes and \f$\mathbf{F} = \mathbf{I}\f$, which serves as a convenient
- * sanity check.
+ * @param domain Solid domain that supplies geometric data and reference Jacobians.
+ * @param fem Owning FEBio model used for debug logging.
+ * @param el Element whose deformation gradient is reconstructed.
+ * @param u Nodal displacement vectors expressed in the global frame.
+ * @param n Index of the Gauss point inside \p el.
+ * @param[out] F Resulting deformation gradient.
+ * @param[out] errorMessage Filled with diagnostic text when the determinant is non-positive.
+ * @return `true` on success, `false` when the determinant is non-positive or a debug failure occurs.
  */
 bool ComputeDefGrad(
 	FESolidDomain& domain,
@@ -141,8 +148,6 @@ bool VFMKinematics::ComputeDeformationGradients(FEModel& fem,
 			const int nint = el.GaussPoints();
 			gpData.gradients.resize(nint);
 
-
-			feLogDebugEx(&fem,"Computed deformation gradient field:");
 			// For every gauss point
 			for (int n = 0; n < nint; ++n)
 			{
