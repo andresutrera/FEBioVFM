@@ -79,8 +79,16 @@ private:
 		 * @note Virtual fields follow the same format as measured displacements and
 		 * drive the inverse analysis portion of the VFM workflow.
 		 */
-		void ParseVirtualDisplacements(XMLTag& tag);
+			void ParseVirtualDisplacements(XMLTag& tag);
+
+			/**
+			 * @brief Emit a debug summary of parsed configuration data.
+			 *
+			 * @note Uses feLogDebugEx so the output is only visible when FEBio runs
+			 * in debug logging mode (e.g. command line option -g).
+			 */
+			void LogDebugSummary() const;
 
 private:
-		FEOptimizeDataVFM*	m_opt; ///< Destination optimization container populated during parsing.
+			FEOptimizeDataVFM*	m_opt; ///< Destination optimization container populated during parsing.
 	};

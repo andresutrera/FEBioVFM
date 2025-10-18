@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 #include "FEVFMInput.h"
-#include "MeasuredDisplacements.h"
+#include "DisplacementContainer.h"
 
 /**
  * @brief Abstract base for a scalar optimization variable used by the VFM plugin.

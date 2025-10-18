@@ -65,6 +65,8 @@ bool FEVFMInput::Input(const char* szfile, FEOptimizeDataVFM* pOpt)
 	// all done
 	xml.Close();
 
+	if (ret) LogDebugSummary();
+
 	return ret;
 }
 
@@ -166,4 +168,60 @@ void FEVFMInput::ParseMeasuredDisplacements(XMLTag& tag)
 void FEVFMInput::ParseVirtualDisplacements(XMLTag& tag)
 {
 	ParseDisplacementBlock(tag, m_opt->VirtualData());
+}
+
+/**
+ * @brief Emit a formatted summary of the parsed configuration using debug logging.
+ */
+void FEVFMInput::LogDebugSummary() const
+{
+	if (m_opt == nullptr) return;
+
+	FEModel* fem = m_opt->GetFEModel();
+	if (fem == nullptr) return;
+
+	feLogDebugEx(fem, "---- VFM Input Summary --------------------------------");
+
+	const int paramCount = m_opt->InputParameters();
+	feLogDebugEx(fem, "  Parameters to optimise: %d", paramCount);
+	for (int i = 0; i < paramCount; ++i)
+	{
+		FEInputParameterVFM* param = m_opt->GetInputParameter(i);
+		if (param == nullptr) continue;
+
+		const std::string name = param->GetName();
+		const double initVal = param->InitValue();
+		const double minVal = param->MinValue();
+		const double maxVal = param->MaxValue();
+
+		feLogDebugEx(fem, "    %-20s init=%-12g min=%-12g max=%-12g", name.c_str(), initVal, minVal, maxVal);
+	}
+
+	const auto& measuredSamples = m_opt->MeasuredData().Samples();
+	if (measuredSamples.empty())
+	{
+		feLogDebugEx(fem, "  Measured displacements: (none)");
+	}
+	else
+	{
+		feLogDebugEx(fem, "  Measured displacements (%zu entries)", measuredSamples.size());
+		for (const ElementDisplacement& entry : measuredSamples)
+		{
+			feLogDebugEx(fem, "    elem %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
+		}
+	}
+
+	const auto& virtualSamples = m_opt->VirtualData().Samples();
+	if (virtualSamples.empty())
+	{
+		feLogDebugEx(fem, "  Virtual displacements: (none)");
+	}
+	else
+	{
+		feLogDebugEx(fem, "  Virtual displacements (%zu entries)", virtualSamples.size());
+		for (const ElementDisplacement& entry : virtualSamples)
+		{
+			feLogDebugEx(fem, "    elem %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
+		}
+	}
 }

@@ -1,5 +1,5 @@
 /**
- * @file MeasuredDisplacements.h
+ * @file DisplacementContainer.h
  * @brief Container for nodal or elemental displacement definitions.
  *
  * The Virtual Fields Method compares simulated responses against externally
@@ -12,6 +12,8 @@
 
 #include <array>
 #include <vector>
+#include <cstddef>
+#include <algorithm>
 
 /**
  * @brief Represents displacement data associated with a single finite element.
@@ -35,19 +37,25 @@ public:
 	/**
 	 * @brief Remove all stored displacement entries.
 	 */
-	void Clear();
+	inline void Clear() { m_data.clear(); }
 
 	/**
 	 * @brief Append a new element displacement measurement.
 	 * @param elemId Element identifier from the XML input.
 	 * @param disp Measured ux, uy, uz tuple.
 	 */
-	void Add(int elemId, const std::array<double, 3>& disp);
+	inline void Add(int elemId, const std::array<double, 3>& disp)
+	{
+		ElementDisplacement entry;
+		entry.id = elemId;
+		entry.displacement = disp;
+		m_data.push_back(entry);
+	}
 
 	/**
 	 * @brief Number of stored displacement samples.
 	 */
-	size_t Size() const;
+	inline size_t Size() const { return m_data.size(); }
 
 	/**
 	 * @brief Provide read-only access to all stored displacement samples.
@@ -59,7 +67,13 @@ public:
 	 * @param elemId Element identifier to look up.
 	 * @return Pointer to the measurement or nullptr when not present.
 	 */
-	const ElementDisplacement* Find(int elemId) const;
+	inline const ElementDisplacement* Find(int elemId) const
+	{
+		auto it = std::find_if(m_data.begin(), m_data.end(), [elemId](const ElementDisplacement& e) {
+			return e.id == elemId;
+		});
+		return (it != m_data.end() ? &(*it) : nullptr);
+	}
 
 private:
 	std::vector<ElementDisplacement> m_data; ///< Insertion-ordered displacement samples.
