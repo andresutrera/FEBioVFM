@@ -10,6 +10,7 @@
 #include <string>
 #include "FEData.h"
 #include "VFMKinematics.h"
+#include "VFMExport.h"
 
 /**
  * @brief Default constructor storing the FEBio model reference.
@@ -72,6 +73,37 @@ bool FEVFMTask::Init(const char* szfile)
 	{
 		feLogErrorEx(m_opt.GetFEModel(), kinematicsError.c_str());
 		return false;
+	}
+
+	std::string plotPath;
+	if (szfile && *szfile)
+	{
+		plotPath = szfile;
+		std::size_t pos = plotPath.find_last_of('.');
+		if (pos != std::string::npos)
+			plotPath.replace(pos, std::string::npos, ".xplt");
+		else
+			plotPath.append(".xplt");
+	}
+	else
+	{
+		plotPath = "vfm_state.xplt";
+	}
+
+	std::string exportError;
+	if (!ExportVFMKinematics(plotPath,
+		*m_opt.GetFEModel(),
+		m_opt.MeasuredData(),
+		m_opt.VirtualData(),
+		m_opt.DeformationGradients(),
+		exportError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		return false;
+	}
+	else
+	{
+		feLog("VFM: exported kinematic snapshot to %s\n", plotPath.c_str());
 	}
 
 	return true;
