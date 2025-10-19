@@ -3,6 +3,7 @@
 #include "DisplacementContainer.h"
 #include "DeformationGradientField.h"
 #include "StressField.h"
+#include "FirstPiolaField.h"
 #include "FEData.h"
 
 #include <algorithm>
@@ -177,6 +178,51 @@ private:
 	const StressField* m_field = nullptr;
 };
 
+class VFMPlotFirstPiolaStress : public FEPlotDomainData
+{
+public:
+	explicit VFMPlotFirstPiolaStress(FEModel* fem)
+		: FEPlotDomainData(fem, PLT_MAT3F, FMT_ITEM)
+	{
+		SetUnits(UNIT_PRESSURE);
+	}
+
+	void SetStressData(const FirstPiolaField* field) { m_field = field; }
+
+	bool Save(FEDomain& dom, FEDataStream& a) override
+	{
+		if (dom.Class() != FE_DOMAIN_SOLID)
+		{
+			mat3d zero; zero.zero();
+			for (int i = 0; i < dom.Elements(); ++i) a << zero;
+			return true;
+		}
+
+		FESolidDomain& sd = static_cast<FESolidDomain&>(dom);
+		for (int i = 0; i < sd.Elements(); ++i)
+		{
+			FESolidElement& el = sd.Element(i);
+			const FirstPiolaField* field = m_field;
+			const GaussPointFirstPiola* gpP = (field ? field->Find(el.GetID()) : nullptr);
+
+			mat3d Pav; Pav.zero();
+			if (gpP && !gpP->stresses.empty())
+			{
+				mat3d accumulator; accumulator.zero();
+				for (const mat3d& P : gpP->stresses) accumulator += P;
+				accumulator /= static_cast<double>(gpP->stresses.size());
+				Pav = accumulator;
+			}
+
+			a << Pav;
+		}
+		return true;
+	}
+
+private:
+	const FirstPiolaField* m_field = nullptr;
+};
+
 } // namespace
 
 struct VFMExportSession::Impl
@@ -200,6 +246,8 @@ struct VFMExportSession::Impl
 
 	VFMPlotStress* stressField = nullptr;
 	const StressHistory* stressHist = nullptr;
+	VFMPlotFirstPiolaStress* firstPiolaField = nullptr;
+	const FirstPiolaHistory* firstPiolaHist = nullptr;
 
 	std::vector<double> times;
 	bool finalized = false;
@@ -383,6 +431,28 @@ struct VFMExportSession::Impl
 		return true;
 	}
 
+	bool AddFirstPiolaStress(const FirstPiolaHistory& hist, std::string& error)
+	{
+		if (firstPiolaHist != nullptr)
+		{
+			error = "Measured first Piola stress history already registered.";
+			return false;
+		}
+
+		VFMPlotFirstPiolaStress* plotVar = new VFMPlotFirstPiolaStress(&fem);
+		if (!plot.AddVariable(plotVar, "Measured First Piola Stress"))
+		{
+			error = "Failed to register first Piola stress field.";
+			delete plotVar;
+			return false;
+		}
+
+		firstPiolaField = plotVar;
+		firstPiolaHist = &hist;
+		AppendTimes(hist);
+		return true;
+	}
+
 	bool Finalize(std::string& error)
 	{
 		if (finalized) return true;
@@ -490,6 +560,24 @@ struct VFMExportSession::Impl
 				stressField->SetStressData(stressStep ? &stressStep->field : nullptr);
 			}
 
+			const FirstPiolaHistory::TimeStep* piolaStep = nullptr;
+			if (firstPiolaHist)
+			{
+				for (const auto& step : firstPiolaHist->StepsRef())
+				{
+					if (std::fabs(step.time - t) <= TIME_EPS)
+					{
+						piolaStep = &step;
+						break;
+					}
+				}
+			}
+
+			if (firstPiolaField)
+			{
+				firstPiolaField->SetStressData(piolaStep ? &piolaStep->field : nullptr);
+			}
+
 			if (!plot.Write(static_cast<float>(t)))
 			{
 				error = "Failed to write plot state.";
@@ -534,6 +622,11 @@ bool VFMExportSession::AddMeasuredDeformationGradients(const DeformationGradient
 bool VFMExportSession::AddMeasuredStress(const StressHistory& hist, std::string& error)
 {
 	return m_impl->AddMeasuredStress(hist, error);
+}
+
+bool VFMExportSession::AddFirstPiolaStress(const FirstPiolaHistory& hist, std::string& error)
+{
+	return m_impl->AddFirstPiolaStress(hist, error);
 }
 
 bool VFMExportSession::Finalize(std::string& error)

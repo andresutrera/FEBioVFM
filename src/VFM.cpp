@@ -299,6 +299,47 @@ void LogStressHistory(FEModel& fem, const StressHistory& history)
 	}
 }
 
+void LogFirstPiolaHistory(FEModel& fem, const FirstPiolaHistory& history)
+{
+	feLogDebugEx(&fem, "  First Piola-Kirchhoff stresses: %zu steps", history.Steps());
+	if (history.Steps() == 0)
+	{
+		feLogDebugEx(&fem, "    <none>");
+		return;
+	}
+
+	size_t stepIdx = 0;
+	for (const auto& step : history)
+	{
+		const auto& elements = step.field.Data();
+		feLogDebugEx(&fem, "    [%02zu] t = %-12g elements = %zu", stepIdx++, step.time, elements.size());
+
+		if (elements.empty())
+		{
+			feLogDebugEx(&fem, "      <no stresses>");
+			continue;
+		}
+
+		for (const GaussPointFirstPiola& gp : elements)
+		{
+			feLogDebugEx(&fem, "      elem %6d : %zu gauss points", gp.elementId, gp.stresses.size());
+			if (gp.stresses.empty())
+			{
+				feLogDebugEx(&fem, "        <no stress tensors>");
+				continue;
+			}
+
+			size_t gpIdx = 0;
+			for (const mat3d& P : gp.stresses)
+			{
+				feLogDebugEx(&fem, "        gp %02zu :", gpIdx);
+				LogMatrix(fem, "          ", P);
+				++gpIdx;
+			}
+		}
+	}
+}
+
 void LogSetupDiagnostics(FEOptimizeDataVFM& opt)
 {
 	FEModel* fem = opt.GetFEModel();
@@ -321,25 +362,38 @@ void LogStressDiagnostics(FEOptimizeDataVFM& opt)
 
 	feLogDebugEx(fem, "---- VFM Diagnostics (stresses) ----------------------");
 	LogStressHistory(*fem, opt.StressTimeline());
+	LogFirstPiolaHistory(*fem, opt.FirstPiolaTimeline());
 }
 
 bool BuildStressHistory(FEOptimizeDataVFM& opt, std::string& errorMessage)
 {
 	auto& defHistory = opt.DeformationHistory();
 	auto& stressHistory = opt.StressTimeline();
+	auto& piolaHistory = opt.FirstPiolaTimeline();
 
 	stressHistory.Clear();
 	stressHistory.Reserve(defHistory.Steps());
+	piolaHistory.Clear();
+	piolaHistory.Reserve(defHistory.Steps());
 
 	if (defHistory.Empty()) return true;
 
 	for (const auto& defStep : defHistory)
 	{
 		auto& stressStep = stressHistory.AddStep(defStep.time);
+		auto& piolaStep = piolaHistory.AddStep(defStep.time);
 
 		if (!VFMStress::ComputeCauchyStress(*opt.GetFEModel(),
 			defStep.field,
 			stressStep.field,
+			errorMessage))
+		{
+			return false;
+		}
+
+		if (!VFMStress::ComputeFirstPiolaStress(defStep.field,
+			stressStep.field,
+			piolaStep.field,
 			errorMessage))
 		{
 			return false;
@@ -684,6 +738,11 @@ bool FEVFMTask::ExportState(const char* szfile)
 		return false;
 	}
 	if (!session.AddMeasuredStress(m_opt.StressTimeline(), exportError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		return false;
+	}
+	if (!session.AddFirstPiolaStress(m_opt.FirstPiolaTimeline(), exportError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
 		return false;

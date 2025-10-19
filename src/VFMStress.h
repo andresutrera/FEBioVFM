@@ -9,6 +9,7 @@
 class FEModel;
 class DeformationGradientField;
 class StressField;
+class FirstPiolaField;
 
 /**
  * @brief Constitutive utilities that evaluate Gauss-point stresses without advancing the FE model.
@@ -28,5 +29,19 @@ public:
 	static bool ComputeCauchyStress(FEModel& fem,
 		const DeformationGradientField& defField,
 		StressField& outField,
+		std::string& errorMessage);
+
+	/**
+	 * @brief Transform Cauchy stresses into first Piola-Kirchhoff stresses.
+	 *
+	 * @param defField Deformation gradients evaluated at each Gauss point.
+	 * @param cauchyField Cauchy stresses previously computed for the same Gauss points.
+	 * @param outField Destination container for the transformed stresses; cleared before filling.
+	 * @param errorMessage Populated with diagnostic text when the evaluation fails.
+	 * @return true on success, false otherwise.
+	 */
+	static bool ComputeFirstPiolaStress(const DeformationGradientField& defField,
+		const StressField& cauchyField,
+		FirstPiolaField& outField,
 		std::string& errorMessage);
 };

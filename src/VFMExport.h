@@ -14,6 +14,7 @@ class FEModel;
 class DisplacementHistory;
 class DeformationGradientHistory;
 class StressHistory;
+class FirstPiolaHistory;
 
 /**
  * @brief Helper class that stages VFM export data and writes it to an XPLT file.
@@ -32,6 +33,7 @@ public:
 	bool AddVirtualDeformationGradients(const VirtualDeformationGradientCollection& fields, std::string& error);
 	bool AddMeasuredDeformationGradients(const DeformationGradientHistory& hist, std::string& error);
 	bool AddMeasuredStress(const StressHistory& hist, std::string& error);
+	bool AddFirstPiolaStress(const FirstPiolaHistory& hist, std::string& error);
 	bool Finalize(std::string& error);
 
 private:

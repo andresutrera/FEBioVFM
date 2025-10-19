@@ -2,9 +2,11 @@
 
 #include "DeformationGradientField.h"
 #include "StressField.h"
+#include "FirstPiolaField.h"
 
 #include <memory>
 #include <string>
+#include <cmath>
 
 #include <FECore/FEModel.h>
 #include <FECore/FEMesh.h>
@@ -116,6 +118,66 @@ bool VFMStress::ComputeCauchyStress(FEModel& fem,
 
 			outField.Add(std::move(gpStress));
 		}
+	}
+
+	return true;
+}
+
+bool VFMStress::ComputeFirstPiolaStress(const DeformationGradientField& defField,
+	const StressField& cauchyField,
+	FirstPiolaField& outField,
+	std::string& errorMessage)
+{
+	outField.Clear();
+
+	constexpr double DET_TOL = 1e-12;
+
+	for (const GaussPointStress& gpStress : cauchyField.Data())
+	{
+		const GaussPointDeformation* gpDef = defField.Find(gpStress.elementId);
+		if (gpDef == nullptr)
+		{
+			errorMessage = "Missing deformation gradient data for element " + std::to_string(gpStress.elementId) + ".";
+			return false;
+		}
+
+		if (gpDef->gradients.size() != gpStress.stresses.size())
+		{
+			errorMessage = "Mismatch between stored Cauchy stresses and deformation gradients for element " + std::to_string(gpStress.elementId) + ".";
+			return false;
+		}
+
+		GaussPointFirstPiola gpPiola;
+		gpPiola.elementId = gpStress.elementId;
+		gpPiola.stresses.resize(gpStress.stresses.size());
+
+		for (size_t n = 0; n < gpStress.stresses.size(); ++n)
+		{
+			const mat3d& F = gpDef->gradients[n];
+			const double J = F.det();
+			if (std::fabs(J) <= DET_TOL)
+			{
+				errorMessage = "Deformation gradient for element " + std::to_string(gpStress.elementId) +
+					" at Gauss point " + std::to_string(n) + " is singular.";
+				return false;
+			}
+
+			const mat3ds& sigma = gpStress.stresses[n];
+			const mat3d sigmaMat(
+				sigma.xx(), sigma.xy(), sigma.xz(),
+				sigma.xy(), sigma.yy(), sigma.yz(),
+				sigma.xz(), sigma.yz(), sigma.zz());
+
+			const mat3d Finv = F.inverse();
+			const mat3d FinvT = Finv.transpose();
+
+			mat3d P = sigmaMat * FinvT;
+			P *= J;
+
+			gpPiola.stresses[n] = P;
+		}
+
+		outField.Add(std::move(gpPiola));
 	}
 
 	return true;

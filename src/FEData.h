@@ -6,6 +6,7 @@
 #include "DisplacementContainer.h"
 #include "DeformationGradientField.h"
 #include "StressField.h"
+#include "FirstPiolaField.h"
 #include "MeasuredLoadContainer.h"
 #include "VirtualDisplacementContainer.h"
 #include "VirtualDeformationGradientContainer.h"
@@ -264,6 +265,9 @@ public:
 	StressHistory& StressTimeline() { return m_stressHistory; }
 	const StressHistory& StressTimeline() const { return m_stressHistory; }
 
+	FirstPiolaHistory& FirstPiolaTimeline() { return m_firstPiolaHistory; }
+	const FirstPiolaHistory& FirstPiolaTimeline() const { return m_firstPiolaHistory; }
+
 	std::vector<VirtualExternalWorkHistory>& VirtualExternalWork() { return m_virtualExternalWork; }
 	const std::vector<VirtualExternalWorkHistory>& VirtualExternalWork() const { return m_virtualExternalWork; }
 
@@ -314,5 +318,6 @@ protected:
 	VirtualDeformationGradientCollection m_virtualDefGradients; ///< Deformation gradients for virtual displacement fields.
 	std::vector<VirtualExternalWorkHistory> m_virtualExternalWork; ///< External virtual work per field/time.
 	DeformationGradientHistory m_defGradHistory; ///< Deformation gradient history.
-	StressHistory m_stressHistory; ///< Stress history reconstructed from deformation gradients.
+	StressHistory m_stressHistory; ///< Cauchy stress history reconstructed from deformation gradients.
+	FirstPiolaHistory m_firstPiolaHistory; ///< First Piola-Kirchhoff stress history.
 };
