@@ -279,6 +279,9 @@ public:
 	bool RebuildStressHistories(std::string& errorMessage);
 	bool RebuildStressHistories(const std::vector<double>& parameterValues, bool restoreOriginalValues, std::string& errorMessage);
 
+	bool AssembleResidual(std::vector<double>& residual, std::string& errorMessage);
+	bool AssembleResidual(const std::vector<double>& parameterValues, bool restoreOriginalValues, std::vector<double>& residual, std::string& errorMessage);
+
 	/**
 	 * @brief Solve the forward FE problem with a proposed parameter vector.
 	 * @param a Ordered list of parameter values sourced from the optimizer.
@@ -332,6 +335,7 @@ protected:
 
 private:
 	bool RebuildStressHistoriesInternal(std::string& errorMessage);
+	bool AssembleResidualInternal(std::vector<double>& residual, std::string& errorMessage);
 
 private:
 	std::vector<double> m_initialParameters; ///< Parameter vector captured after initialization.

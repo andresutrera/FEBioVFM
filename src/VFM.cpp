@@ -784,5 +784,18 @@ bool FEVFMTask::Run()
 
 	feLog("VFM: stress reconstruction completed for %zu time steps.\n", m_opt.StressTimeline().Steps());
 
+	std::vector<double> initialResidual;
+	if (!m_opt.AssembleResidual(initialResidual, stressError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), stressError.c_str());
+		return false;
+	}
+
+	feLog("VFM: initial residual vector (%zu entries)\n", initialResidual.size());
+	for (size_t i = 0; i < initialResidual.size(); ++i)
+	{
+		feLog("    r[%zu] = %.15g\n", i, initialResidual[i]);
+	}
+
 	return true;
 }

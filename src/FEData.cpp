@@ -7,6 +7,38 @@
 #include <FECore/FEModel.h>
 #include <FECore/FEAnalysis.h>
 #include <FECore/log.h>
+#include <FECore/FEMesh.h>
+#include <FECore/FEDomain.h>
+#include <FECore/FESolidDomain.h>
+#include <FECore/FESolidElement.h>
+#include <unordered_map>
+
+namespace
+{
+
+double DoubleContraction(const mat3d& A, const mat3d& B)
+{
+	double s = 0.0;
+	for (int i = 0; i < 3; ++i)
+	{
+		for (int j = 0; j < 3; ++j)
+		{
+			s += A[i][j] * B[i][j];
+		}
+	}
+	return s;
+}
+
+mat3d VirtualGradientFromDeformation(const mat3d& Fstar)
+{
+	mat3d G = Fstar;
+	G[0][0] -= 1.0;
+	G[1][1] -= 1.0;
+	G[2][2] -= 1.0;
+	return G;
+}
+
+} // namespace
 /**
  * @brief Construct a model parameter adapter with a null data pointer.
  *
@@ -297,6 +329,11 @@ bool FEOptimizeDataVFM::RebuildStressHistories(const std::vector<double>& parame
 			errorMessage = restoreError;
 			return false;
 		}
+		if (!RebuildStressHistoriesInternal(restoreError))
+		{
+			errorMessage = restoreError;
+			return false;
+		}
 	}
 
 	return result;
@@ -334,6 +371,185 @@ bool FEOptimizeDataVFM::RebuildStressHistoriesInternal(std::string& errorMessage
 			errorMessage))
 		{
 			return false;
+		}
+	}
+
+	return true;
+}
+
+bool FEOptimizeDataVFM::AssembleResidual(std::vector<double>& residual, std::string& errorMessage)
+{
+	return AssembleResidualInternal(residual, errorMessage);
+}
+
+bool FEOptimizeDataVFM::AssembleResidual(const std::vector<double>& parameterValues,
+	bool restoreOriginalValues,
+	std::vector<double>& residual,
+	std::string& errorMessage)
+{
+	std::vector<double> originalValues;
+	if (restoreOriginalValues)
+	{
+		GetParameterVector(originalValues);
+	}
+
+	bool parametersUpdated = false;
+	if (!parameterValues.empty())
+	{
+		if (!SetParameterVector(parameterValues, errorMessage))
+		{
+			return false;
+		}
+		parametersUpdated = true;
+	}
+
+	if (parametersUpdated)
+	{
+		if (!RebuildStressHistoriesInternal(errorMessage))
+		{
+			if (restoreOriginalValues)
+			{
+				std::string restoreError;
+				if (SetParameterVector(originalValues, restoreError))
+				{
+					if (!RebuildStressHistoriesInternal(restoreError))
+					{
+						errorMessage = restoreError;
+					}
+				}
+				else
+				{
+					errorMessage = restoreError;
+				}
+			}
+			return false;
+		}
+	}
+
+	const bool assembled = AssembleResidualInternal(residual, errorMessage);
+
+	if (restoreOriginalValues)
+	{
+		std::string restoreError;
+		if (!SetParameterVector(originalValues, restoreError))
+		{
+			errorMessage = restoreError;
+			return false;
+		}
+		if (!RebuildStressHistoriesInternal(restoreError))
+		{
+			errorMessage = restoreError;
+			return false;
+		}
+	}
+
+	return assembled;
+}
+
+bool FEOptimizeDataVFM::AssembleResidualInternal(std::vector<double>& residual, std::string& errorMessage)
+{
+	const size_t fieldCount = m_virtualDefGradients.Size();
+	const size_t timeCount = FirstPiolaTimeline().Steps();
+
+	residual.assign(fieldCount * timeCount, 0.0);
+
+	if ((fieldCount == 0) || (timeCount == 0))
+	{
+		residual.clear();
+		return true;
+	}
+
+	if (m_virtualExternalWork.size() != fieldCount)
+	{
+		errorMessage = "Virtual external work history count does not match the number of virtual fields.";
+		return false;
+	}
+
+	for (size_t i = 0; i < fieldCount; ++i)
+	{
+		if (m_virtualExternalWork[i].work.size() < timeCount)
+		{
+			errorMessage = "Virtual external work history for field index " + std::to_string(i) + " is shorter than the stress timeline.";
+			return false;
+		}
+	}
+
+	FEMesh& mesh = GetFEModel()->GetMesh();
+	std::unordered_map<int, std::vector<double>> integrationWeights;
+
+	const int domainCount = mesh.Domains();
+	for (int domIdx = 0; domIdx < domainCount; ++domIdx)
+	{
+		FEDomain& domain = mesh.Domain(domIdx);
+		auto* solidDomain = dynamic_cast<FESolidDomain*>(&domain);
+		if (solidDomain == nullptr) continue;
+
+		const int elemCount = solidDomain->Elements();
+		for (int elemIdx = 0; elemIdx < elemCount; ++elemIdx)
+		{
+			FESolidElement& el = static_cast<FESolidElement&>(solidDomain->ElementRef(elemIdx));
+			const int elemId = el.GetID();
+			const int nint = el.GaussPoints();
+
+			std::vector<double> weights(nint, 0.0);
+			double* gw = el.GaussWeights();
+			for (int n = 0; n < nint; ++n)
+			{
+				const double gaussWeight = (gw ? gw[n] : 1.0);
+				const double detJ0 = solidDomain->detJ0(el, n);
+				weights[n] = gaussWeight * detJ0;
+			}
+
+			integrationWeights.emplace(elemId, std::move(weights));
+		}
+	}
+
+	const double timeTolerance = 1e-12;
+	for (size_t fieldIdx = 0; fieldIdx < fieldCount; ++fieldIdx)
+	{
+		const auto& virtualField = m_virtualDefGradients[fieldIdx];
+		const auto& externalWork = m_virtualExternalWork[fieldIdx].work;
+
+		for (size_t timeIdx = 0; timeIdx < timeCount; ++timeIdx)
+		{
+			const FirstPiolaHistory::TimeStep& piolaStep = m_firstPiolaHistory[timeIdx];
+			const DeformationGradientHistory::TimeStep* virtualStep = virtualField.history.FindStepByTime(piolaStep.time, timeTolerance);
+
+			double internalVirtualWork = 0.0;
+			for (const GaussPointFirstPiola& gpPiola : piolaStep.field.Data())
+			{
+				auto weightIt = integrationWeights.find(gpPiola.elementId);
+				if (weightIt == integrationWeights.end())
+				{
+					errorMessage = "Missing integration weights for element " + std::to_string(gpPiola.elementId) + ".";
+					return false;
+				}
+
+				const std::vector<double>& weights = weightIt->second;
+				const GaussPointDeformation* gpVirtual = (virtualStep ? virtualStep->field.Find(gpPiola.elementId) : nullptr);
+
+				const size_t gaussCount = gpPiola.stresses.size();
+				if (weights.size() < gaussCount)
+				{
+					errorMessage = "Integration weight count mismatch for element " + std::to_string(gpPiola.elementId) + ".";
+					return false;
+				}
+
+				for (size_t n = 0; n < gaussCount; ++n)
+				{
+					const mat3d& P = gpPiola.stresses[n];
+					mat3d G; G.zero();
+					if (gpVirtual && n < gpVirtual->gradients.size())
+					{
+						G = VirtualGradientFromDeformation(gpVirtual->gradients[n]);
+					}
+
+					internalVirtualWork += DoubleContraction(P, G) * weights[n];
+				}
+			}
+
+			const size_t residualIndex = fieldIdx * timeCount + timeIdx;
+			residual[residualIndex] = internalVirtualWork - externalWork[timeIdx];
 		}
 	}
 

@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <utility>
+#include <cmath>
 
 #include <FECore/mat3d.h>
 
@@ -116,6 +117,24 @@ public:
 		{
 			fn(step.time, step.field);
 		}
+	}
+
+	TimeStep* FindStepByTime(double time, double tol = 1e-12)
+	{
+		for (auto& step : m_steps)
+		{
+			if (std::fabs(step.time - time) <= tol) return &step;
+		}
+		return nullptr;
+	}
+
+	const TimeStep* FindStepByTime(double time, double tol = 1e-12) const
+	{
+		for (const auto& step : m_steps)
+		{
+			if (std::fabs(step.time - time) <= tol) return &step;
+		}
+		return nullptr;
 	}
 
 private:
