@@ -337,27 +337,47 @@ bool FEVFMTask::Init(const char* szfile)
 {
     feLog("V I R T U A L   F I E L D S   M E T H O D   (setup)\n");
 
-	// read the data from the xml input file
+	if (!LoadInput(szfile)) return false;
+	if (!InitializeOptimization()) return false;
+	if (!ValidateModel()) return false;
+	if (!ComputeMeasuredKinematics()) return false;
+	if (!ComputeVirtualKinematics()) return false;
+	if (!ValidateDataConsistency()) return false;
+	if (!BuildStressHistoryStage()) return false;
+	LogDiagnostics();
+	if (!ExportState(szfile)) return false;
+	return true;
+}
+
+bool FEVFMTask::LoadInput(const char* szfile)
+{
 	if (m_opt.Input(szfile) == false) return false;
+	return true;
+}
 
-	// do initialization
-	bool ret = m_opt.Init();
-
-	if (ret == false)
+bool FEVFMTask::InitializeOptimization()
+{
+	if (m_opt.Init() == false)
 	{
 		feLogErrorEx(m_opt.GetFEModel(), "Failed to initialize the optimization data.");
 		return false;
 	}
+	return true;
+}
 
+bool FEVFMTask::ValidateModel()
+{
 	std::string validationError;
 	if (!VFMValidation::ValidateSolidDomains(*m_opt.GetFEModel(), validationError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
 		return false;
 	}
+	return true;
+}
 
-
-	// compute deformation gradients for each time step
+bool FEVFMTask::ComputeMeasuredKinematics()
+{
 	const auto& measuredHistory = m_opt.MeasuredHistory();
 	auto& defHistory = m_opt.DeformationHistory();
 	defHistory.Clear();
@@ -381,8 +401,11 @@ bool FEVFMTask::Init(const char* szfile)
 
 		feLog("VFM: computed deformation gradients for t = %g\n", t);
 	}
+	return true;
+}
 
-	// compute virtual deformation gradients for each virtual field
+bool FEVFMTask::ComputeVirtualKinematics()
+{
 	auto& virtualGradients = m_opt.VirtualDeformationGradients();
 	virtualGradients.Clear();
 	const auto& virtualFields = m_opt.VirtualFields();
@@ -412,8 +435,12 @@ bool FEVFMTask::Init(const char* szfile)
 
 		++fieldIdx;
 	}
+	return true;
+}
 
-
+bool FEVFMTask::ValidateDataConsistency()
+{
+	std::string validationError;
 	if (!VFMValidation::ValidateDisplacementCounts(*m_opt.GetFEModel(), m_opt, validationError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
@@ -426,16 +453,29 @@ bool FEVFMTask::Init(const char* szfile)
 		return false;
 	}
 
+	return true;
+}
+
+bool FEVFMTask::BuildStressHistoryStage()
+{
 	std::string stressError;
 	if (!BuildStressHistory(m_opt, stressError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), stressError.c_str());
 		return false;
 	}
+	return true;
+}
 
+bool FEVFMTask::LogDiagnostics()
+{
 	LogSetupDiagnostics(m_opt);
 	LogStressDiagnostics(m_opt);
+	return true;
+}
 
+bool FEVFMTask::ExportState(const char* szfile)
+{
 	std::string plotPath;
 	if (szfile && *szfile)
 	{
@@ -464,13 +504,9 @@ bool FEVFMTask::Init(const char* szfile)
 		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
 		return false;
 	}
-	else
-	{
-		feLog("VFM: exported kinematic snapshot to %s\n", plotPath.c_str());
-	}
 
+	feLog("VFM: exported kinematic snapshot to %s\n", plotPath.c_str());
 	return true;
-
 }
 
 /**

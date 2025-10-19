@@ -47,9 +47,9 @@ public:
      * @note At present the method delegates parsing to FEOptimizeDataVFM and only
      * logs minimal progress. Future revisions will populate @c m_context.
      */
-    bool Init(const char* szfile) override;
+	bool Init(const char* szfile) override;
 
-    /**
+	/**
      * @brief Execute the task after all initialization steps have completed.
      * @return true if the run completed without fatal errors.
      *
@@ -61,9 +61,19 @@ public:
     /**
      * @brief Fetch the cached Virtual Fields context structure.
      */
-    const FEVFMContext& Context() const { return m_context; }
+	const FEVFMContext& Context() const { return m_context; }
 
 private:
+	bool LoadInput(const char* szfile);
+	bool InitializeOptimization();
+	bool ValidateModel();
+	bool ComputeMeasuredKinematics();
+	bool ComputeVirtualKinematics();
+	bool ValidateDataConsistency();
+	bool BuildStressHistoryStage();
+	bool LogDiagnostics();
+	bool ExportState(const char* szfile);
+
     FEVFMContext m_context;      ///< Task-wide context populated during Init().
     FEOptimizeDataVFM	m_opt;    ///< Optimization data wrapper responsible for parsing input.
 };
