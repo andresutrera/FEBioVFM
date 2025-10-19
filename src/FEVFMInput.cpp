@@ -283,7 +283,49 @@ void FEVFMInput::ParseMeasuredDisplacements(XMLTag& tag)
  */
 void FEVFMInput::ParseVirtualDisplacements(XMLTag& tag)
 {
-	ParseDisplacementBlock(tag, m_opt->VirtualHistory());
+	m_opt->ClearVirtualFields();
+
+	bool found = false;
+	XMLTag fieldTag(tag);
+	++fieldTag;
+	while (!fieldTag.isend())
+	{
+		if (fieldTag == "virtualdisplacement")
+		{
+			found = true;
+			const char* szId = fieldTag.AttributeValue("id", false);
+			std::string fieldId = szId ? szId : "";
+			VirtualDisplacementField& field = m_opt->AddVirtualField(fieldId);
+			ParseDisplacementBlock(fieldTag, field.history);
+		}
+		else if (fieldTag == "time")
+		{
+			// Legacy format: times directly under <VirtualDisplacements>.
+			if (!found)
+			{
+				VirtualDisplacementField& field = m_opt->AddVirtualField("");
+				ParseDisplacementBlock(tag, field.history);
+				found = true;
+				break;
+			}
+			else
+			{
+				throw XMLReader::InvalidTag(fieldTag);
+			}
+		}
+		else
+		{
+			throw XMLReader::InvalidTag(fieldTag);
+		}
+
+		fieldTag.skip();
+		++fieldTag;
+	}
+
+	if (!found)
+	{
+		throw XMLReader::InvalidTag(tag);
+	}
 }
 
 /**

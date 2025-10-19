@@ -76,10 +76,24 @@ the VFM.
 ```
 
 Both `<node>` and legacy `<elem>` tags are accepted for backwards compatibility,
-but the data are always treated as nodal quantities.  After parsing, the two
-containers live on a time history; access individual steps with
-`FEOptimizeDataVFM::MeasuredHistory()[i]` and `::VirtualHistory()[i]`, each of
-which exposes the samples collected for that time point.
+but the data are always treated as nodal quantities.  Measured displacements
+remain a single time history accessible via `FEOptimizeDataVFM::MeasuredHistory()`.
+Virtual fields are stored as an array of histories obtained from
+`FEOptimizeDataVFM::VirtualFields()`.  Each entry exposes an `id` (optional) and
+its own `DisplacementHistory`, so multiple virtual fields can be supplied in the
+input file.
+
+```xml
+<VirtualDisplacements>
+    <virtualdisplacement id='phi_1'>
+        <time t="0.1"> ... </time>
+        <time t="0.2"> ... </time>
+    </virtualdisplacement>
+    <virtualdisplacement id='phi_2'>
+        ...
+    </virtualdisplacement>
+</VirtualDisplacements>
+```
 
 Measured surface loads follow a similar pattern:
 

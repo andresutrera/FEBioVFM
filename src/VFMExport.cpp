@@ -3,6 +3,7 @@
 #include "DisplacementContainer.h"
 #include "DeformationGradientField.h"
 #include "StressField.h"
+#include "FEData.h"
 
 #include <algorithm>
 #include <cmath>
@@ -17,6 +18,24 @@
 
 namespace
 {
+
+std::string SanitizeName(const std::string& input)
+{
+	std::string result;
+	result.reserve(input.size());
+	for (char c : input)
+	{
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')
+		{
+			result.push_back(c);
+		}
+		else
+		{
+			result.push_back('_');
+		}
+	}
+	return result;
+}
 
 class VFMPlotFile : public FEBioPlotFile
 {
@@ -189,7 +208,7 @@ private:
 bool ExportVFMKinematics(const std::string& filePath,
 	FEModel& fem,
 	const DisplacementHistory& measuredHist,
-	const DisplacementHistory& virtualHist,
+	const std::vector<VirtualDisplacementField>& virtualFields,
 	const DeformationGradientHistory& defHist,
 	const StressHistory& stressHist,
 	std::string& error)
@@ -212,12 +231,47 @@ bool ExportVFMKinematics(const std::string& filePath,
 		return false;
 	}
 
-	auto* virtualField = new VFMPlotVirtualDisplacement(&fem);
-	if (!plt.AddVariable(virtualField, "vfm_virtual_disp"))
+	std::vector<VFMPlotVirtualDisplacement*> virtualFieldPlots;
+	std::vector<const VirtualDisplacementField*> virtualFieldRefs;
+	if (virtualFields.empty())
 	{
-		delete virtualField;
-		error = "Failed to register virtual displacement field.";
-		return false;
+		auto* plot = new VFMPlotVirtualDisplacement(&fem);
+		if (!plt.AddVariable(plot, "vfm_virtual_disp"))
+		{
+			delete plot;
+			error = "Failed to register virtual displacement field.";
+			return false;
+		}
+		virtualFieldPlots.push_back(plot);
+		virtualFieldRefs.push_back(nullptr);
+	}
+	else
+	{
+		virtualFieldPlots.reserve(virtualFields.size());
+		virtualFieldRefs.reserve(virtualFields.size());
+		size_t idx = 0;
+		for (const auto& field : virtualFields)
+		{
+			auto* plot = new VFMPlotVirtualDisplacement(&fem);
+			std::string varName = "vfm_virtual_disp";
+			if (!field.id.empty())
+			{
+				varName += "_" + SanitizeName(field.id);
+			}
+			else if (virtualFields.size() > 1)
+			{
+				varName += "_" + std::to_string(idx);
+			}
+			if (!plt.AddVariable(plot, varName.c_str()))
+			{
+				delete plot;
+				error = "Failed to register virtual displacement field.";
+				return false;
+			}
+			virtualFieldPlots.push_back(plot);
+			virtualFieldRefs.push_back(&field);
+			++idx;
+		}
 	}
 
 	auto* defGradField = new VFMPlotDeformationGradient(&fem);
@@ -245,7 +299,12 @@ bool ExportVFMKinematics(const std::string& filePath,
 	}
 
 	std::vector<double> times;
-	times.reserve(measuredHist.Steps() + virtualHist.Steps() + defHist.Steps() + stressHist.Steps());
+	size_t virtualSteps = 0;
+	for (const auto& field : virtualFields)
+	{
+		virtualSteps += field.history.Steps();
+	}
+	times.reserve(measuredHist.Steps() + virtualSteps + defHist.Steps() + stressHist.Steps());
 
 	const double TIME_EPS = 1e-12;
 
@@ -254,9 +313,12 @@ bool ExportVFMKinematics(const std::string& filePath,
 		times.push_back(step.time);
 	}
 
-	for (const auto& step : virtualHist.StepsRef())
+	for (const auto& field : virtualFields)
 	{
-		times.push_back(step.time);
+		for (const auto& step : field.history.StepsRef())
+		{
+			times.push_back(step.time);
+		}
 	}
 
 	for (const auto& step : defHist.StepsRef())
@@ -292,11 +354,6 @@ bool ExportVFMKinematics(const std::string& filePath,
 		return measuredHist.FindStepByTime(t, TIME_EPS);
 	};
 
-	auto findVirtualStep = [&](double t) -> const DisplacementHistory::TimeStep*
-	{
-		return virtualHist.FindStepByTime(t, TIME_EPS);
-	};
-
 	auto findDefStep = [&](double t) -> const DeformationGradientHistory::TimeStep*
 	{
 		for (const auto& step : defHist.StepsRef())
@@ -318,13 +375,20 @@ bool ExportVFMKinematics(const std::string& filePath,
 	for (double t : uniqueTimes)
 	{
 		const auto* measuredStep = findMeasuredStep(t);
-		const auto* virtualStep = findVirtualStep(t);
 		const auto* defStep = findDefStep(t);
 		const auto* stressStep = findStressStep(t);
 
 		measuredField->SetDisplacementData(measuredStep ? &measuredStep->displacements : nullptr);
 		displacementField->SetDisplacementData(measuredStep ? &measuredStep->displacements : nullptr);
-		virtualField->SetDisplacementData(virtualStep ? &virtualStep->displacements : nullptr);
+		for (size_t i = 0; i < virtualFieldPlots.size(); ++i)
+		{
+			const DisplacementHistory::TimeStep* stepPtr = nullptr;
+			if (virtualFieldRefs[i] != nullptr)
+			{
+				stepPtr = virtualFieldRefs[i]->history.FindStepByTime(t, TIME_EPS);
+			}
+			virtualFieldPlots[i]->SetDisplacementData(stepPtr ? &stepPtr->displacements : nullptr);
+		}
 		defGradField->SetDeformationData(defStep ? &defStep->field : nullptr);
 		stressField->SetStressData(stressStep ? &stressStep->field : nullptr);
 

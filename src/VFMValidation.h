@@ -62,8 +62,6 @@ public:
 		const int nodeCount = fem.GetMesh().Nodes();
 
 		const auto& measuredHistory = data.MeasuredHistory();
-		const auto& virtualHistory = data.VirtualHistory();
-		
 
 		if (measuredHistory.Empty())
 		{
@@ -71,44 +69,22 @@ public:
 			return false;
 		}
 
-		if (virtualHistory.Empty())
-		{
-			errorMessage = "Virtual displacement history is empty.";
-			return false;
-		}
-
-		if (measuredHistory.Steps() != virtualHistory.Steps())
-		{
-			errorMessage = "Measured and virtual displacement histories contain a different number of time steps.";
-			return false;
-		}
-
 		if (measuredHistory.Steps() != data.DeformationHistory().Steps())
 		{
-			errorMessage = "Deformation gradient history does not match displacement histories.";
+			errorMessage = "Deformation gradient history does not match displacement history length.";
 			return false;
 		}
-
 
 		for (size_t i = 0; i < measuredHistory.Steps(); ++i)
 		{
 			const auto& measStep = measuredHistory[i];
-			const auto& virtStep = virtualHistory[i];
 			const size_t countMeasured = measStep.displacements.Size();
-			const size_t countVirtual = virtStep.displacements.Size();
 
 			if ((int)countMeasured != nodeCount)
 			{
 				errorMessage = "Measured displacement count at time " + std::to_string(measStep.time) + " (" + std::to_string(countMeasured) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
 				return false;
 			}
-
-			if ((int)countVirtual != nodeCount)
-			{
-				errorMessage = "Virtual displacement count at time " + std::to_string(virtStep.time) + " (" + std::to_string(countVirtual) + ") does not match mesh node count (" + std::to_string(nodeCount) + ").";
-				return false;
-			}
-
 		}
 
 		return true;

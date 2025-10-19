@@ -8,6 +8,7 @@
 #include <FECore/FEModel.h>
 #include <FECore/log.h>
 #include <string>
+#include <vector>
 #include "FEData.h"
 #include "VFMKinematics.h"
 #include "VFMExport.h"
@@ -120,6 +121,32 @@ void LogLoadHistory(FEModel& fem, const MeasuredLoadHistory& history)
 	}
 }
 
+void LogVirtualFields(FEModel& fem, const std::vector<VirtualDisplacementField>& fields)
+{
+	feLogDebugEx(&fem, "  Virtual fields: %zu", fields.size());
+	if (fields.empty())
+	{
+		feLogDebugEx(&fem, "    <none>");
+		return;
+	}
+
+	size_t fieldIdx = 0;
+	for (const auto& field : fields)
+	{
+		std::string label = "Virtual ";
+		if (!field.id.empty())
+		{
+			label += "[" + field.id + "]";
+		}
+		else
+		{
+			label += "[#" + std::to_string(fieldIdx) + "]";
+		}
+		LogDisplacementHistory(fem, label.c_str(), field.history);
+		++fieldIdx;
+	}
+}
+
 void LogDeformationHistory(FEModel& fem, const DeformationGradientHistory& history)
 {
 	feLogDebugEx(&fem, "  Deformation gradients: %zu steps", history.Steps());
@@ -210,7 +237,7 @@ void LogSetupDiagnostics(FEOptimizeDataVFM& opt)
 	feLogDebugEx(fem, "---- VFM Diagnostics (setup) -------------------------");
 	LogParameterSummary(opt);
 	LogDisplacementHistory(*fem, "Measured", opt.MeasuredHistory());
-	LogDisplacementHistory(*fem, "Virtual ", opt.VirtualHistory());
+	LogVirtualFields(*fem, opt.VirtualFields());
 	LogLoadHistory(*fem, opt.MeasuredLoads());
 	LogDeformationHistory(*fem, opt.DeformationHistory());
 }
@@ -304,7 +331,6 @@ bool FEVFMTask::Init(const char* szfile)
 
 	// compute deformation gradients for each time step
 	const auto& measuredHistory = m_opt.MeasuredHistory();
-	const auto& virtualHistory = m_opt.VirtualHistory();
 	auto& defHistory = m_opt.DeformationHistory();
 	defHistory.Clear();
 	defHistory.Reserve(measuredHistory.Steps());
@@ -312,14 +338,6 @@ bool FEVFMTask::Init(const char* szfile)
 	for (const auto& measStep : measuredHistory)
 	{
 		const double t = measStep.time;
-		const auto* virtStep = virtualHistory.FindStepByTime(t);
-
-		if (virtStep == nullptr)
-		{
-			feLogErrorEx(m_opt.GetFEModel(), "Virtual history missing timestep for t = %g", t);
-			return false;
-		}
-
 		auto& defStep = defHistory.AddStep(t);
 		defStep.field.Clear();
 
@@ -378,7 +396,7 @@ bool FEVFMTask::Init(const char* szfile)
 	if (!ExportVFMKinematics(plotPath,
 		*m_opt.GetFEModel(),
 		m_opt.MeasuredHistory(),
-		m_opt.VirtualHistory(),
+		m_opt.VirtualFields(),
 		m_opt.DeformationHistory(),
 		m_opt.StressTimeline(),
 		exportError))

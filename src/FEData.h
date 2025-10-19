@@ -8,6 +8,12 @@
 #include "StressField.h"
 #include "MeasuredLoadContainer.h"
 
+struct VirtualDisplacementField
+{
+	std::string id;
+	DisplacementHistory history;
+};
+
 /**
  * @brief Abstract base for a scalar optimization variable used by the VFM plugin.
  *
@@ -217,11 +223,27 @@ public:
 
 
 	/**
-	 * @brief Access the full virtual displacement history.
+	 * @brief Access all configured virtual displacement fields.
 	 */
-	DisplacementHistory& VirtualHistory() { return m_virtual; }
-	const DisplacementHistory& VirtualHistory() const { return m_virtual; }
+	std::vector<VirtualDisplacementField>& VirtualFields() { return m_virtualFields; }
+	const std::vector<VirtualDisplacementField>& VirtualFields() const { return m_virtualFields; }
 
+	/**
+	 * @brief Append a new virtual displacement field identified by @p fieldId.
+	 */
+	VirtualDisplacementField& AddVirtualField(const std::string& fieldId)
+	{
+		VirtualDisplacementField field;
+		field.id = fieldId;
+		field.history.Clear();
+		m_virtualFields.push_back(std::move(field));
+		return m_virtualFields.back();
+	}
+
+	/**
+	 * @brief Remove all stored virtual displacement fields.
+	 */
+	void ClearVirtualFields() { m_virtualFields.clear(); }
 
 
 	DeformationGradientHistory& DeformationHistory() { return m_defGradHistory; }
@@ -272,7 +294,7 @@ protected:
 	FEModel*	m_fem;   ///< FEBio model associated with the optimization run.
 	std::vector<FEInputParameterVFM*>	    m_Var; ///< Registered optimization variables (non-owning).
 	DisplacementHistory m_measured; ///< Experimentally measured displacement history.
-	DisplacementHistory m_virtual;  ///< Prescribed virtual displacement history.
+	std::vector<VirtualDisplacementField> m_virtualFields; ///< Prescribed virtual displacement histories.
 	MeasuredLoadHistory m_measuredLoads; ///< Experimentally measured surface load history.
 	DeformationGradientHistory m_defGradHistory; ///< Deformation gradient history.
 	StressHistory m_stressHistory; ///< Stress history reconstructed from deformation gradients.

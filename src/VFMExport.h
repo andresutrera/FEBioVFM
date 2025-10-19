@@ -5,11 +5,13 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 class FEModel;
 class DisplacementHistory;
 class DeformationGradientHistory;
 class StressHistory;
+struct VirtualDisplacementField;
 
 /**
  * @brief Export measured/virtual displacements and deformation gradients to an XPLT file.
@@ -26,7 +28,7 @@ class StressHistory;
 bool ExportVFMKinematics(const std::string& filePath,
 	FEModel& fem,
 	const DisplacementHistory& measuredHist,
-	const DisplacementHistory& virtualHist,
+	const std::vector<VirtualDisplacementField>& virtualFields,
 	const DeformationGradientHistory& defHist,
 	const StressHistory& stressHist,
 	std::string& error);
