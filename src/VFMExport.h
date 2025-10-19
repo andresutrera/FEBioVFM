@@ -9,6 +9,7 @@
 class FEModel;
 class DisplacementHistory;
 class DeformationGradientHistory;
+class StressHistory;
 
 /**
  * @brief Export measured/virtual displacements and deformation gradients to an XPLT file.
@@ -18,6 +19,7 @@ class DeformationGradientHistory;
  * @param measuredHist Timeline of measured nodal displacements.
  * @param virtualHist  Timeline of virtual nodal displacements.
  * @param defHist      Timeline of Gauss-point deformation gradients reconstructed by the VFM kinematics pass.
+ * @param stressHist   Timeline of Gauss-point stresses reconstructed from deformation gradients.
  * @param error    Filled with a descriptive message when the export fails.
  * @return true on success, false otherwise.
  */
@@ -26,4 +28,5 @@ bool ExportVFMKinematics(const std::string& filePath,
 	const DisplacementHistory& measuredHist,
 	const DisplacementHistory& virtualHist,
 	const DeformationGradientHistory& defHist,
+	const StressHistory& stressHist,
 	std::string& error);

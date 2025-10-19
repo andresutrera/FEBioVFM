@@ -82,13 +82,6 @@ bool ComputeDefGrad(
 
 	const double detF = F.det();
 
-	feLogDebugEx(&fem,
-		"F(elem %d, gp %d) = [[%.5f %.5f %.5f] [%.5f %.5f %.5f] [%.5f %.5f %.5f]], det(F) = %.5f",
-		el.GetID(), n,
-		F[0][0], F[0][1], F[0][2],
-		F[1][0], F[1][1], F[1][2],
-		F[2][0], F[2][1], F[2][2],
-		detF);
 
 	if (detF <= 0.0)
 	{

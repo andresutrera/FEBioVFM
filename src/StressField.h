@@ -1,6 +1,6 @@
 /**
- * @file DeformationGradientField.h
- * @brief Storage for gauss-point deformation gradient tensors.
+ * @file StressField.h
+ * @brief Storage helpers for Gauss-point stress tensors across time steps.
  */
 #pragma once
 
@@ -11,58 +11,58 @@
 #include <FECore/mat3d.h>
 
 /**
- * @brief Holds deformation gradients for a single finite element.
+ * @brief Holds Cauchy stress tensors for a single finite element.
  */
-struct GaussPointDeformation
+struct GaussPointStress
 {
 	int elementId = -1;              ///< Element identifier (`GetID()` from FEBio).
-	std::vector<mat3d> gradients;    ///< Deformation gradient tensors per Gauss point.
+	std::vector<mat3ds> stresses;    ///< Symmetric Cauchy stress tensors per Gauss point.
 };
 
 /**
- * @brief Aggregates deformation gradients for all elements in the analysed mesh.
+ * @brief Aggregates stress tensors for all elements in the analysed mesh.
  */
-class DeformationGradientField
+class StressField
 {
 public:
-	/// Remove all stored deformation gradients.
+	/// Remove all stored stress tensors.
 	inline void Clear() { m_data.clear(); }
 
-	/// Append gradients for a new element.
-	inline void Add(GaussPointDeformation entry) { m_data.push_back(std::move(entry)); }
+	/// Append stress data for a new element.
+	inline void Add(GaussPointStress entry) { m_data.push_back(std::move(entry)); }
 
-	/// Number of elements with stored gradients.
+	/// Number of elements with stored stresses.
 	inline size_t Size() const { return m_data.size(); }
 
 	/// Read/write access to the stored data.
-	inline std::vector<GaussPointDeformation>& Data() { return m_data; }
+	inline std::vector<GaussPointStress>& Data() { return m_data; }
 
 	/// Read-only access to the stored data.
-	inline const std::vector<GaussPointDeformation>& Data() const { return m_data; }
+	inline const std::vector<GaussPointStress>& Data() const { return m_data; }
 
-	/// Find gradients for a particular element ID.
-	inline const GaussPointDeformation* Find(int elementId) const
+	/// Find stresses for a particular element ID.
+	inline const GaussPointStress* Find(int elementId) const
 	{
-		auto it = std::find_if(m_data.begin(), m_data.end(), [elementId](const GaussPointDeformation& e) {
+		auto it = std::find_if(m_data.begin(), m_data.end(), [elementId](const GaussPointStress& e) {
 			return e.elementId == elementId;
 		});
 		return (it != m_data.end() ? &(*it) : nullptr);
 	}
 
 private:
-	std::vector<GaussPointDeformation> m_data;
+	std::vector<GaussPointStress> m_data;
 };
 
 /**
- * @brief Timeline wrapper around deformation gradients per time step.
+ * @brief Timeline wrapper around stress tensors per time step.
  */
-class DeformationGradientHistory
+class StressHistory
 {
 public:
 	struct TimeStep
 	{
 		double time = 0.0;
-		DeformationGradientField field;
+		StressField field;
 	};
 
 	void Clear()
@@ -71,6 +71,8 @@ public:
 		m_active = 0;
 	}
 
+	void Reserve(size_t count) { m_steps.reserve(count); }
+
 	TimeStep& AddStep(double time)
 	{
 		TimeStep step;
@@ -78,8 +80,6 @@ public:
 		m_steps.push_back(std::move(step));
 		return m_steps.back();
 	}
-
-	void Reserve(size_t count) { m_steps.reserve(count); }
 
 	size_t Steps() const { return m_steps.size(); }
 	bool Empty() const { return m_steps.empty(); }
@@ -146,11 +146,14 @@ public:
 	}
 
 	template <typename Functor>
-	void ForEachDeformation(Functor fn) const
+	void ForEachStress(Functor fn) const
 	{
 		for (const auto& step : m_steps)
 		{
-			fn(step.time, step.field);
+			for (const GaussPointStress& entry : step.field.Data())
+			{
+				fn(step.time, entry);
+			}
 		}
 	}
 

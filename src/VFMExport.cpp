@@ -2,6 +2,7 @@
 
 #include "DisplacementContainer.h"
 #include "DeformationGradientField.h"
+#include "StressField.h"
 
 #include <algorithm>
 #include <cmath>
@@ -134,6 +135,53 @@ private:
 	const DeformationGradientField* m_field = nullptr;
 };
 
+// -----------------------------------------------------------------------------'
+
+class VFMPlotStress : public FEPlotDomainData
+{
+public:
+	VFMPlotStress(FEModel* fem)
+		: FEPlotDomainData(fem, PLT_MAT3FS, FMT_ITEM)
+	{
+		SetUnits(UNIT_PRESSURE);
+	}
+
+	void SetStressData(const StressField* field) { m_field = field; }
+
+	bool Save(FEDomain& dom, FEDataStream& a) override
+	{
+		if (dom.Class() != FE_DOMAIN_SOLID)
+		{
+			mat3ds zero; zero.zero();
+			for (int i = 0; i < dom.Elements(); ++i) a << zero;
+			return true;
+		}
+
+		FESolidDomain& sd = static_cast<FESolidDomain&>(dom);
+		for (int i = 0; i < sd.Elements(); ++i)
+		{
+			FESolidElement& el = sd.Element(i);
+			const StressField* field = m_field;
+			const GaussPointStress* gpS = (field ? field->Find(el.GetID()) : nullptr);
+
+			mat3ds Sav; Sav.zero();
+			if (gpS && !gpS->stresses.empty())
+			{
+				mat3ds accumulator; accumulator.zero();
+				for (const mat3ds& s : gpS->stresses) accumulator += s;
+				accumulator /= static_cast<double>(gpS->stresses.size());
+				Sav = accumulator;
+			}
+
+			a << Sav;
+		}
+		return true;
+	}
+
+private:
+	const StressField* m_field = nullptr;
+};
+
 } // namespace
 
 // -----------------------------------------------------------------------------'
@@ -143,6 +191,7 @@ bool ExportVFMKinematics(const std::string& filePath,
 	const DisplacementHistory& measuredHist,
 	const DisplacementHistory& virtualHist,
 	const DeformationGradientHistory& defHist,
+	const StressHistory& stressHist,
 	std::string& error)
 {
 	VFMPlotFile plt(&fem);
@@ -152,6 +201,14 @@ bool ExportVFMKinematics(const std::string& filePath,
 	{
 		delete measuredField;
 		error = "Failed to register measured displacement field.";
+		return false;
+	}
+
+	auto* displacementField = new VFMPlotMeasuredDisplacement(&fem);
+	if (!plt.AddVariable(displacementField, "displacement"))
+	{
+		delete displacementField;
+		error = "Failed to register displacement field.";
 		return false;
 	}
 
@@ -171,6 +228,14 @@ bool ExportVFMKinematics(const std::string& filePath,
 		return false;
 	}
 
+	auto* stressField = new VFMPlotStress(&fem);
+	if (!plt.AddVariable(stressField, "vfm_stress"))
+	{
+		delete stressField;
+		error = "Failed to register stress field.";
+		return false;
+	}
+
 	plt.SetSoftwareString("FEBio VFM plug-in");
 
 	if (!plt.Open(filePath.c_str()))
@@ -180,7 +245,7 @@ bool ExportVFMKinematics(const std::string& filePath,
 	}
 
 	std::vector<double> times;
-	times.reserve(measuredHist.Steps() + virtualHist.Steps() + defHist.Steps());
+	times.reserve(measuredHist.Steps() + virtualHist.Steps() + defHist.Steps() + stressHist.Steps());
 
 	const double TIME_EPS = 1e-12;
 
@@ -195,6 +260,11 @@ bool ExportVFMKinematics(const std::string& filePath,
 	}
 
 	for (const auto& step : defHist.StepsRef())
+	{
+		times.push_back(step.time);
+	}
+
+	for (const auto& step : stressHist.StepsRef())
 	{
 		times.push_back(step.time);
 	}
@@ -236,15 +306,27 @@ bool ExportVFMKinematics(const std::string& filePath,
 		return nullptr;
 	};
 
+	auto findStressStep = [&](double t) -> const StressHistory::TimeStep*
+	{
+		for (const auto& step : stressHist.StepsRef())
+		{
+			if (std::fabs(step.time - t) <= TIME_EPS) return &step;
+		}
+		return nullptr;
+	};
+
 	for (double t : uniqueTimes)
 	{
 		const auto* measuredStep = findMeasuredStep(t);
 		const auto* virtualStep = findVirtualStep(t);
 		const auto* defStep = findDefStep(t);
+		const auto* stressStep = findStressStep(t);
 
 		measuredField->SetDisplacementData(measuredStep ? &measuredStep->displacements : nullptr);
+		displacementField->SetDisplacementData(measuredStep ? &measuredStep->displacements : nullptr);
 		virtualField->SetDisplacementData(virtualStep ? &virtualStep->displacements : nullptr);
 		defGradField->SetDeformationData(defStep ? &defStep->field : nullptr);
+		stressField->SetStressData(stressStep ? &stressStep->field : nullptr);
 
 		if (!plt.Write(static_cast<float>(t)))
 		{

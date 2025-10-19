@@ -82,14 +82,6 @@ private:
 		 */
 			void ParseVirtualDisplacements(XMLTag& tag);
 
-			/**
-			 * @brief Emit a debug summary of parsed configuration data.
-			 *
-			 * @note Uses feLogDebugEx so the output is only visible when FEBio runs
-			 * in debug logging mode (e.g. command line option -g).
-			 */
-			void LogDebugSummary() const;
-
 private:
 			FEOptimizeDataVFM*	m_opt; ///< Destination optimization container populated during parsing.
 	};

@@ -131,6 +131,10 @@ public:
 	/// True when no time steps are present.
 	inline bool Empty() const { return m_steps.empty(); }
 
+	/// Random access to a time step by index.
+	inline TimeStep& operator[](size_t index) { return m_steps.at(index); }
+	inline const TimeStep& operator[](size_t index) const { return m_steps.at(index); }
+
 	/// Access a particular step (throws when out of bounds).
 	inline TimeStep& StepAt(size_t index) { return m_steps.at(index); }
 	inline const TimeStep& StepAt(size_t index) const { return m_steps.at(index); }
@@ -193,6 +197,37 @@ public:
 	/// Direct access to the underlying storage.
 	inline std::vector<TimeStep>& StepsRef() { return m_steps; }
 	inline const std::vector<TimeStep>& StepsRef() const { return m_steps; }
+
+	using iterator = std::vector<TimeStep>::iterator;
+	using const_iterator = std::vector<TimeStep>::const_iterator;
+
+	inline iterator begin() { return m_steps.begin(); }
+	inline iterator end() { return m_steps.end(); }
+	inline const_iterator begin() const { return m_steps.begin(); }
+	inline const_iterator end() const { return m_steps.end(); }
+	inline const_iterator cbegin() const { return m_steps.cbegin(); }
+	inline const_iterator cend() const { return m_steps.cend(); }
+
+	template <typename Functor>
+	void ForEachTime(Functor fn) const
+	{
+		for (const auto& step : m_steps)
+		{
+			fn(step.time);
+		}
+	}
+
+	template <typename Functor>
+	void ForEachMeasurement(Functor fn) const
+	{
+		for (const auto& step : m_steps)
+		{
+			for (const NodeDisplacement& entry : step.displacements.Samples())
+			{
+				fn(step.time, entry);
+			}
+		}
+	}
 
 private:
 	std::vector<TimeStep> m_steps;

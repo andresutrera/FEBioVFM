@@ -90,8 +90,6 @@ bool FEVFMInput::Input(const char* szfile, FEOptimizeDataVFM* pOpt)
 	// all done
 	xml.Close();
 
-	if (ret) LogDebugSummary();
-
 	return ret;
 }
 
@@ -200,7 +198,7 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
 		throw XMLReader::InvalidTag(tag);
 	}
 
-	history.SetActiveStepByIndex(0);
+
 }
 
 } // namespace
@@ -231,54 +229,4 @@ void FEVFMInput::ParseMeasuredDisplacements(XMLTag& tag)
 void FEVFMInput::ParseVirtualDisplacements(XMLTag& tag)
 {
 	ParseDisplacementBlock(tag, m_opt->VirtualHistory());
-}
-
-/**
- * @brief Emit a formatted summary of the parsed configuration using debug logging.
- */
-void FEVFMInput::LogDebugSummary() const
-{
-	if (m_opt == nullptr) return;
-
-	FEModel* fem = m_opt->GetFEModel();
-	if (fem == nullptr) return;
-
-	feLogDebugEx(fem, "---- VFM Input Summary --------------------------------");
-
-	const int paramCount = m_opt->InputParameters();
-	feLogDebugEx(fem, "  Parameters to optimise: %d", paramCount);
-	for (int i = 0; i < paramCount; ++i)
-	{
-		FEInputParameterVFM* param = m_opt->GetInputParameter(i);
-		if (param == nullptr) continue;
-
-		const std::string name = param->GetName();
-		const double initVal = param->InitValue();
-		const double minVal = param->MinValue();
-		const double maxVal = param->MaxValue();
-
-		feLogDebugEx(fem, "    %-20s init=%-12g min=%-12g max=%-12g", name.c_str(), initVal, minVal, maxVal);
-	}
-
-	const auto& measuredHistory = m_opt->MeasuredHistory();
-	feLogDebugEx(fem, "  Measured displacement steps: %zu", measuredHistory.Steps());
-	for (const auto& step : measuredHistory.StepsRef())
-	{
-		feLogDebugEx(fem, "    t = %-12g (%zu entries)", step.time, step.displacements.Size());
-		for (const NodeDisplacement& entry : step.displacements.Samples())
-		{
-			feLogDebugEx(fem, "      node %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
-		}
-	}
-
-	const auto& virtualHistory = m_opt->VirtualHistory();
-	feLogDebugEx(fem, "  Virtual displacement steps: %zu", virtualHistory.Steps());
-	for (const auto& step : virtualHistory.StepsRef())
-	{
-		feLogDebugEx(fem, "    t = %-12g (%zu entries)", step.time, step.displacements.Size());
-		for (const NodeDisplacement& entry : step.displacements.Samples())
-		{
-			feLogDebugEx(fem, "      node %6d : ux=%-12g uy=%-12g uz=%-12g", entry.id, entry.displacement[0], entry.displacement[1], entry.displacement[2]);
-		}
-	}
 }

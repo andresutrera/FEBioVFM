@@ -5,6 +5,7 @@
 #include "FEVFMInput.h"
 #include "DisplacementContainer.h"
 #include "DeformationGradientField.h"
+#include "StressField.h"
 
 /**
  * @brief Abstract base for a scalar optimization variable used by the VFM plugin.
@@ -238,6 +239,9 @@ public:
 	DeformationGradientHistory& DeformationHistory() { return m_defGradHistory; }
 	const DeformationGradientHistory& DeformationHistory() const { return m_defGradHistory; }
 
+	StressHistory& StressTimeline() { return m_stressHistory; }
+	const StressHistory& StressTimeline() const { return m_stressHistory; }
+
 	/**
 	 * @brief Solve the forward FE problem with a proposed parameter vector.
 	 * @param a Ordered list of parameter values sourced from the optimizer.
@@ -282,4 +286,5 @@ protected:
 	DisplacementHistory m_measured; ///< Experimentally measured displacement history.
 	DisplacementHistory m_virtual;  ///< Prescribed virtual displacement history.
 	DeformationGradientHistory m_defGradHistory; ///< Deformation gradient history.
+	StressHistory m_stressHistory; ///< Stress history reconstructed from deformation gradients.
 };

@@ -11,6 +11,215 @@
 #include "FEData.h"
 #include "VFMKinematics.h"
 #include "VFMExport.h"
+#include "VFMStress.h"
+
+namespace
+{
+
+void LogMatrix(FEModel& fem, const char* indent, const mat3d& m)
+{
+	feLogDebugEx(&fem, "%s[% .6e % .6e % .6e]", indent, m[0][0], m[0][1], m[0][2]);
+	feLogDebugEx(&fem, "%s[% .6e % .6e % .6e]", indent, m[1][0], m[1][1], m[1][2]);
+	feLogDebugEx(&fem, "%s[% .6e % .6e % .6e]", indent, m[2][0], m[2][1], m[2][2]);
+}
+
+void LogMatrix(FEModel& fem, const char* indent, const mat3ds& s)
+{
+	feLogDebugEx(&fem, "%s[% .6e % .6e % .6e]", indent, s.xx(), s.xy(), s.xz());
+	feLogDebugEx(&fem, "%s[% .6e % .6e % .6e]", indent, s.xy(), s.yy(), s.yz());
+	feLogDebugEx(&fem, "%s[% .6e % .6e % .6e]", indent, s.xz(), s.yz(), s.zz());
+}
+
+void LogParameterSummary(FEOptimizeDataVFM& opt)
+{
+	FEModel* fem = opt.GetFEModel();
+	if (fem == nullptr) return;
+
+	const int paramCount = opt.InputParameters();
+	feLogDebugEx(fem, "  Parameters: %d", paramCount);
+	if (paramCount == 0)
+	{
+		feLogDebugEx(fem, "    <none>");
+		return;
+	}
+
+	for (int i = 0; i < paramCount; ++i)
+	{
+		FEInputParameterVFM* param = opt.GetInputParameter(i);
+		if (param == nullptr) continue;
+
+		feLogDebugEx(fem, "    %-20s init=%-12g min=%-12g max=%-12g",
+			param->GetName().c_str(),
+			param->InitValue(),
+			param->MinValue(),
+			param->MaxValue());
+	}
+}
+
+void LogDisplacementHistory(FEModel& fem, const char* label, const DisplacementHistory& history)
+{
+	feLogDebugEx(&fem, "  %s displacements: %zu steps", label, history.Steps());
+	if (history.Steps() == 0)
+	{
+		feLogDebugEx(&fem, "    <none>");
+		return;
+	}
+
+	size_t stepIdx = 0;
+	for (const auto& step : history)
+	{
+		const size_t nodeCount = step.displacements.Size();
+		feLogDebugEx(&fem, "    [%02zu] t = %-12g nodes = %zu", stepIdx++, step.time, nodeCount);
+
+		if (nodeCount == 0)
+		{
+			feLogDebugEx(&fem, "      <no displacement samples>");
+			continue;
+		}
+
+		for (const NodeDisplacement& entry : step.displacements.Samples())
+		{
+			feLogDebugEx(&fem, "      node %6d : ux=%-12g uy=%-12g uz=%-12g",
+				entry.id,
+				entry.displacement[0],
+				entry.displacement[1],
+				entry.displacement[2]);
+		}
+	}
+}
+
+void LogDeformationHistory(FEModel& fem, const DeformationGradientHistory& history)
+{
+	feLogDebugEx(&fem, "  Deformation gradients: %zu steps", history.Steps());
+	if (history.Steps() == 0)
+	{
+		feLogDebugEx(&fem, "    <none>");
+		return;
+	}
+
+	size_t stepIdx = 0;
+	for (const auto& step : history)
+	{
+		const auto& elements = step.field.Data();
+		feLogDebugEx(&fem, "    [%02zu] t = %-12g elements = %zu", stepIdx++, step.time, elements.size());
+
+		if (elements.empty())
+		{
+			feLogDebugEx(&fem, "      <no deformation data>");
+			continue;
+		}
+
+		for (const GaussPointDeformation& gp : elements)
+		{
+			feLogDebugEx(&fem, "      elem %6d : %zu gauss points", gp.elementId, gp.gradients.size());
+			if (gp.gradients.empty())
+			{
+				feLogDebugEx(&fem, "        <no gradients>");
+				continue;
+			}
+
+			size_t gpIdx = 0;
+			for (const mat3d& F : gp.gradients)
+			{
+				feLogDebugEx(&fem, "        gp %02zu :", gpIdx);
+				LogMatrix(fem, "          ", F);
+				++gpIdx;
+			}
+		}
+	}
+}
+
+void LogStressHistory(FEModel& fem, const StressHistory& history)
+{
+	feLogDebugEx(&fem, "  Stresses: %zu steps", history.Steps());
+	if (history.Steps() == 0)
+	{
+		feLogDebugEx(&fem, "    <none>");
+		return;
+	}
+
+	size_t stepIdx = 0;
+	for (const auto& step : history)
+	{
+		const auto& elements = step.field.Data();
+		feLogDebugEx(&fem, "    [%02zu] t = %-12g elements = %zu", stepIdx++, step.time, elements.size());
+
+		if (elements.empty())
+		{
+			feLogDebugEx(&fem, "      <no stresses>");
+			continue;
+		}
+
+		for (const GaussPointStress& gp : elements)
+		{
+			feLogDebugEx(&fem, "      elem %6d : %zu gauss points", gp.elementId, gp.stresses.size());
+			if (gp.stresses.empty())
+			{
+				feLogDebugEx(&fem, "        <no stress tensors>");
+				continue;
+			}
+
+			size_t gpIdx = 0;
+			for (const mat3ds& sigma : gp.stresses)
+			{
+				feLogDebugEx(&fem, "        gp %02zu :", gpIdx);
+				LogMatrix(fem, "          ", sigma);
+				++gpIdx;
+			}
+		}
+	}
+}
+
+void LogSetupDiagnostics(FEOptimizeDataVFM& opt)
+{
+	FEModel* fem = opt.GetFEModel();
+	if (fem == nullptr) return;
+
+	feLogDebugEx(fem, "---- VFM Diagnostics (setup) -------------------------");
+	LogParameterSummary(opt);
+	LogDisplacementHistory(*fem, "Measured", opt.MeasuredHistory());
+	LogDisplacementHistory(*fem, "Virtual ", opt.VirtualHistory());
+	LogDeformationHistory(*fem, opt.DeformationHistory());
+}
+
+void LogStressDiagnostics(FEOptimizeDataVFM& opt)
+{
+	FEModel* fem = opt.GetFEModel();
+	if (fem == nullptr) return;
+
+	feLogDebugEx(fem, "---- VFM Diagnostics (stresses) ----------------------");
+	LogStressHistory(*fem, opt.StressTimeline());
+}
+
+bool BuildStressHistory(FEOptimizeDataVFM& opt, std::string& errorMessage)
+{
+	auto& defHistory = opt.DeformationHistory();
+	auto& stressHistory = opt.StressTimeline();
+
+	stressHistory.Clear();
+	stressHistory.Reserve(defHistory.Steps());
+
+	if (defHistory.Empty()) return true;
+
+	for (const auto& defStep : defHistory)
+	{
+		auto& stressStep = stressHistory.AddStep(defStep.time);
+
+		if (!VFMStress::ComputeCauchyStress(*opt.GetFEModel(),
+			defStep.field,
+			stressStep.field,
+			errorMessage))
+		{
+			return false;
+		}
+
+		// feLog("VFM: computed stresses for t = %g\n", defStep.time);
+	}
+
+	return true;
+}
+
+} // namespace
 
 /**
  * @brief Default constructor storing the FEBio model reference.
@@ -61,29 +270,37 @@ bool FEVFMTask::Init(const char* szfile)
 
 
 	// compute deformation gradients for each time step
-	for (size_t i = 0; i < m_opt.MeasuredHistory().Steps(); ++i)
+	const auto& measuredHistory = m_opt.MeasuredHistory();
+	const auto& virtualHistory = m_opt.VirtualHistory();
+	auto& defHistory = m_opt.DeformationHistory();
+	defHistory.Clear();
+	defHistory.Reserve(measuredHistory.Steps());
+
+	for (const auto& measStep : measuredHistory)
 	{
-		m_opt.MeasuredHistory().SetActiveStepByIndex(i);
-		m_opt.VirtualHistory().SetActiveStepByIndex(i);
-		// ensure deformation history has a matching step
-		if (m_opt.DeformationHistory().Steps() <= i)
+		const double t = measStep.time;
+		const auto* virtStep = virtualHistory.FindStepByTime(t);
+
+		if (virtStep == nullptr)
 		{
-			auto& step = m_opt.DeformationHistory().AddStep(m_opt.MeasuredHistory().StepAt(i).time);
-			step.field.Clear();
+			feLogErrorEx(m_opt.GetFEModel(), "Virtual history missing timestep for t = %g", t);
+			return false;
 		}
-		m_opt.DeformationHistory().SetActiveStepByIndex(i);
+
+		auto& defStep = defHistory.AddStep(t);
+		defStep.field.Clear();
 
 		std::string kinematicsError;
 		if (!VFMKinematics::ComputeDeformationGradients(*m_opt.GetFEModel(),
-			m_opt.MeasuredData(),
-			m_opt.DeformationGradients(),
+			measStep.displacements,
+			defStep.field,
 			kinematicsError))
 		{
 			feLogErrorEx(m_opt.GetFEModel(), kinematicsError.c_str());
 			return false;
 		}
 
-		feLog("VFM: computed deformation gradients for t = %g\n", m_opt.DeformationHistory().ActiveStep().time);
+		feLog("VFM: computed deformation gradients for t = %g\n", t);
 	}
 
 
@@ -92,6 +309,16 @@ bool FEVFMTask::Init(const char* szfile)
 		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
 		return false;
 	}
+
+	std::string stressError;
+	if (!BuildStressHistory(m_opt, stressError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), stressError.c_str());
+		return false;
+	}
+
+	LogSetupDiagnostics(m_opt);
+	LogStressDiagnostics(m_opt);
 
 	std::string plotPath;
 	if (szfile && *szfile)
@@ -114,6 +341,7 @@ bool FEVFMTask::Init(const char* szfile)
 		m_opt.MeasuredHistory(),
 		m_opt.VirtualHistory(),
 		m_opt.DeformationHistory(),
+		m_opt.StressTimeline(),
 		exportError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
@@ -137,10 +365,18 @@ bool FEVFMTask::Init(const char* szfile)
  */
 bool FEVFMTask::Run()
 {
-    feLog("V I R T U A L   F I E L D S   M E T H O D   (run)\n");
+	feLog("V I R T U A L   F I E L D S   M E T H O D   (run)\n");
 
-    feLog("  TODO: parse measured displacements, virtual fields, options, and work history.\n");
-    feLog("  TODO: assemble forward FEBio solve and apply Virtual Fields inversion.\n");
+	std::string stressError;
+	if (!BuildStressHistory(m_opt, stressError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), stressError.c_str());
+		return false;
+	}
 
-    return true;
+	LogStressDiagnostics(m_opt);
+
+	feLog("VFM: stress reconstruction completed for %zu time steps.\n", m_opt.StressTimeline().Steps());
+
+	return true;
 }
