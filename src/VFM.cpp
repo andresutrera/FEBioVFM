@@ -121,18 +121,18 @@ void LogLoadHistory(FEModel& fem, const MeasuredLoadHistory& history)
 	}
 }
 
-void LogVirtualFields(FEModel& fem, const std::vector<VirtualDisplacementField>& fields)
+void LogVirtualFields(FEModel& fem, const VirtualDisplacementCollection& fields)
 {
-	feLogDebugEx(&fem, "  Virtual fields: %zu", fields.size());
-	if (fields.empty())
+	feLogDebugEx(&fem, "  Virtual fields: %zu", fields.Size());
+	if (fields.Empty())
 	{
 		feLogDebugEx(&fem, "    <none>");
 		return;
 	}
 
-	size_t fieldIdx = 0;
-	for (const auto& field : fields)
+	for (size_t fieldIdx = 0; fieldIdx < fields.Size(); ++fieldIdx)
 	{
+		const auto& field = fields[fieldIdx];
 		std::string label = "Virtual ";
 		if (!field.id.empty())
 		{

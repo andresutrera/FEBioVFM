@@ -208,7 +208,7 @@ private:
 bool ExportVFMKinematics(const std::string& filePath,
 	FEModel& fem,
 	const DisplacementHistory& measuredHist,
-	const std::vector<VirtualDisplacementField>& virtualFields,
+	const VirtualDisplacementCollection& virtualFields,
 	const DeformationGradientHistory& defHist,
 	const StressHistory& stressHist,
 	std::string& error)
@@ -232,8 +232,8 @@ bool ExportVFMKinematics(const std::string& filePath,
 	}
 
 	std::vector<VFMPlotVirtualDisplacement*> virtualFieldPlots;
-	std::vector<const VirtualDisplacementField*> virtualFieldRefs;
-	if (virtualFields.empty())
+	std::vector<const VirtualDisplacementCollection::Field*> virtualFieldRefs;
+	if (virtualFields.Empty())
 	{
 		auto* plot = new VFMPlotVirtualDisplacement(&fem);
 		if (!plt.AddVariable(plot, "vfm_virtual_disp"))
@@ -247,8 +247,8 @@ bool ExportVFMKinematics(const std::string& filePath,
 	}
 	else
 	{
-		virtualFieldPlots.reserve(virtualFields.size());
-		virtualFieldRefs.reserve(virtualFields.size());
+		virtualFieldPlots.reserve(virtualFields.Size());
+		virtualFieldRefs.reserve(virtualFields.Size());
 		size_t idx = 0;
 		for (const auto& field : virtualFields)
 		{
@@ -258,7 +258,7 @@ bool ExportVFMKinematics(const std::string& filePath,
 			{
 				varName += "_" + SanitizeName(field.id);
 			}
-			else if (virtualFields.size() > 1)
+			else if (virtualFields.Size() > 1)
 			{
 				varName += "_" + std::to_string(idx);
 			}

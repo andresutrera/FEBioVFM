@@ -290,20 +290,20 @@ void FEVFMInput::ParseVirtualDisplacements(XMLTag& tag)
 	++fieldTag;
 	while (!fieldTag.isend())
 	{
-		if (fieldTag == "virtualdisplacement")
-		{
-			found = true;
-			const char* szId = fieldTag.AttributeValue("id", false);
-			std::string fieldId = szId ? szId : "";
-			VirtualDisplacementField& field = m_opt->AddVirtualField(fieldId);
-			ParseDisplacementBlock(fieldTag, field.history);
-		}
+			if (fieldTag == "virtualdisplacement")
+			{
+				found = true;
+				const char* szId = fieldTag.AttributeValue("id", false);
+				std::string fieldId = szId ? szId : "";
+				auto& field = m_opt->AddVirtualField(fieldId);
+				ParseDisplacementBlock(fieldTag, field.history);
+			}
 		else if (fieldTag == "time")
 		{
-			// Legacy format: times directly under <VirtualDisplacements>.
-			if (!found)
-			{
-				VirtualDisplacementField& field = m_opt->AddVirtualField("");
+				// Legacy format: times directly under <VirtualDisplacements>.
+				if (!found)
+				{
+					auto& field = m_opt->AddVirtualField("");
 				ParseDisplacementBlock(tag, field.history);
 				found = true;
 				break;
