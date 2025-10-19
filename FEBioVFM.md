@@ -239,3 +239,5 @@ Future development will focus on:
   objective functions and gradient computations.
 
 These notes will be updated as new components are implemented.
+
+Virtual external work values are stored in `FEOptimizeDataVFM::VirtualExternalWork()`, giving one scalar history per virtual field and time step.

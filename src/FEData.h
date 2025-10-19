@@ -169,6 +169,13 @@ private:
 class FEOptimizeDataVFM
 {
 public:
+	struct VirtualExternalWorkHistory
+	{
+		std::vector<double> work;
+	};
+
+
+public:
 	/**
 	 * @brief Construct the optimization state wrapper.
 	 * @param fem FEBio model that will be solved during optimization.
@@ -257,6 +264,9 @@ public:
 	StressHistory& StressTimeline() { return m_stressHistory; }
 	const StressHistory& StressTimeline() const { return m_stressHistory; }
 
+	std::vector<VirtualExternalWorkHistory>& VirtualExternalWork() { return m_virtualExternalWork; }
+	const std::vector<VirtualExternalWorkHistory>& VirtualExternalWork() const { return m_virtualExternalWork; }
+
 	/**
 	 * @brief Solve the forward FE problem with a proposed parameter vector.
 	 * @param a Ordered list of parameter values sourced from the optimizer.
@@ -302,6 +312,7 @@ protected:
 	VirtualDisplacementCollection m_virtualFields; ///< Prescribed virtual displacement histories.
 	MeasuredLoadHistory m_measuredLoads; ///< Experimentally measured surface load history.
 	VirtualDeformationGradientCollection m_virtualDefGradients; ///< Deformation gradients for virtual displacement fields.
+	std::vector<VirtualExternalWorkHistory> m_virtualExternalWork; ///< External virtual work per field/time.
 	DeformationGradientHistory m_defGradHistory; ///< Deformation gradient history.
 	StressHistory m_stressHistory; ///< Stress history reconstructed from deformation gradients.
 };

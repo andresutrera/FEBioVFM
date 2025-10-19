@@ -1,3 +1,4 @@
+#include <unordered_map>
 // Minimal implementation scaffold for the Virtual Fields Method task. The goal
 // is to keep enough structure so we can discuss how the dedicated VFMData.feb
 // input will be consumed while leaving the heavy lifting for later steps.
@@ -344,6 +345,7 @@ bool FEVFMTask::Init(const char* szfile)
 	if (!ComputeVirtualKinematics()) return false;
 	if (!ValidateDataConsistency()) return false;
 	if (!BuildStressHistoryStage()) return false;
+	if (!ComputeExternalWork()) return false;
 	LogDiagnostics();
 	if (!ExportState(szfile)) return false;
 	return true;
@@ -464,6 +466,123 @@ bool FEVFMTask::BuildStressHistoryStage()
 		feLogErrorEx(m_opt.GetFEModel(), stressError.c_str());
 		return false;
 	}
+	return true;
+}
+
+bool FEVFMTask::ComputeExternalWork()
+{
+	// Gather references to the histories involved in the external work calculation.
+	const auto& loadsHistory = m_opt.MeasuredLoads();
+	const auto& virtualFields = m_opt.VirtualFields();
+	auto& workHistories = m_opt.VirtualExternalWork();
+	workHistories.clear();
+
+	// If no virtual fields were defined there is nothing to do.
+	if (virtualFields.Empty()) return true;
+
+	// Prepare storage: one scalar history per virtual field.
+	workHistories.resize(virtualFields.Size());
+
+	// Build the list of time stamps present in the measured load history.
+	std::vector<double> times;
+	for (const auto& step : loadsHistory.StepsRef())
+	{
+		times.push_back(step.time);
+	}
+
+	const size_t timeCount = times.size();
+
+	for (size_t vi = 0; vi < virtualFields.Size(); ++vi)
+	{
+		auto& workVec = workHistories[vi].work;
+		workVec.assign(timeCount, 0.0);
+	}
+
+	// Cache the sets of mesh nodes that belong to each loaded surface.
+	std::unordered_map<std::string, std::vector<int>> surfaceNodes;
+	FEMesh& mesh = m_opt.GetFEModel()->GetMesh();
+	for (const auto& loadStep : loadsHistory.StepsRef())
+	{
+		for (const auto& sample : loadStep.loads.Samples())
+		{
+			if (surfaceNodes.find(sample.id) != surfaceNodes.end()) continue;
+
+			std::vector<int> nodeIds;
+			if (FESurface* surface = mesh.FindSurface(sample.id.c_str()); surface != nullptr)
+			{
+				FENodeList nodeList = surface->GetNodeList();
+				nodeIds.reserve(nodeList.Size());
+				for (int i = 0; i < nodeList.Size(); ++i)
+				{
+					const FENode* node = nodeList.Node(i);
+					if (node) nodeIds.push_back(node->GetID());
+				}
+			}
+
+			surfaceNodes.emplace(sample.id, std::move(nodeIds));
+		}
+	}
+
+	// Loop over every time point and virtual field, accumulating the external work.
+	for (size_t ti = 0; ti < timeCount; ++ti)
+	{
+		double time = times[ti];
+		const auto* loadStep = loadsHistory.FindStepByTime(time);
+		if (loadStep == nullptr) continue;
+
+		// Map each surface id to its resultant force vector at the current time.
+		std::unordered_map<std::string, vec3d> loadMap;
+		for (const auto& sample : loadStep->loads.Samples())
+		{
+			loadMap.emplace(sample.id, sample.load);
+		}
+
+		for (size_t vi = 0; vi < virtualFields.Size(); ++vi)
+		{
+			double w = 0.0;
+			const auto& vField = virtualFields[vi];
+
+			// Locate the virtual displacement history entry for the current time.
+			const auto* vStep = vField.history.FindStepByTime(time, 1e-12);
+
+			// Iterate over all loaded surfaces and accumulate the virtual work.
+			for (const auto& kv : loadMap)
+			{
+				const std::string& surfaceId = kv.first;
+				const vec3d& force = kv.second;
+
+				// Retrieve the nodes that define this surface.
+				vec3d virtualDisp(0, 0, 0);
+				const auto surfIt = surfaceNodes.find(surfaceId);
+				if (vStep && surfIt != surfaceNodes.end() && !surfIt->second.empty())
+				{
+					// Average the virtual displacement prescribed by the field over the surface nodes.
+					int contributingNodes = 0;
+					for (int nodeId : surfIt->second)
+					{
+						std::array<double, 3> disp{};
+						if (vStep->displacements.TryGet(nodeId, disp))
+						{
+							virtualDisp.x += disp[0];
+							virtualDisp.y += disp[1];
+							virtualDisp.z += disp[2];
+							++contributingNodes;
+						}
+					}
+					if (contributingNodes > 0)
+					{
+						virtualDisp /= static_cast<double>(contributingNodes);
+					}
+				}
+
+				// Accumulate the dot product to form the external work contribution for this field and time.
+				w += force * virtualDisp;
+			}
+
+			workHistories[vi].work[ti] = w;
+		}
+	}
+
 	return true;
 }
 

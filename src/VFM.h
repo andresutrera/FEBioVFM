@@ -71,6 +71,7 @@ private:
 	bool ComputeVirtualKinematics();
 	bool ValidateDataConsistency();
 	bool BuildStressHistoryStage();
+	bool ComputeExternalWork();
 	bool LogDiagnostics();
 	bool ExportState(const char* szfile);
 
