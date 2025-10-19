@@ -59,6 +59,7 @@ public:
 
 		const auto& measuredHistory = data.MeasuredHistory();
 		const auto& virtualHistory = data.VirtualHistory();
+		
 
 		if (measuredHistory.Empty())
 		{
@@ -84,23 +85,12 @@ public:
 			return false;
 		}
 
-		for (size_t i = 0; i < measuredHistory.Steps(); ++i)
-		{
-			const double tm = measuredHistory.StepAt(i).time;
-			const double tv = virtualHistory.StepAt(i).time;
-			const double tf = data.DeformationHistory().StepAt(i).time;
-			if (std::fabs(tm - tv) > 1e-12 || std::fabs(tm - tf) > 1e-12)
-			{
-				errorMessage = "Measured, virtual, and deformation gradient histories do not share the same time sequence.";
-				return false;
-			}
-		}
 
 		for (size_t i = 0; i < measuredHistory.Steps(); ++i)
 		{
-			const auto& measStep = measuredHistory.StepAt(i);
-			const auto& virtStep = virtualHistory.StepAt(i);
-			const auto& defStep = data.DeformationHistory().StepAt(i);
+			const auto& measStep = measuredHistory[i];
+			const auto& virtStep = virtualHistory[i];
+			const auto& defStep = data.DeformationHistory()[i];
 
 			const size_t countMeasured = measStep.displacements.Size();
 			const size_t countVirtual = virtStep.displacements.Size();
@@ -117,7 +107,6 @@ public:
 				return false;
 			}
 
-			// Deformation gradients are stored per element, so no node-count check here.
 		}
 
 		return true;

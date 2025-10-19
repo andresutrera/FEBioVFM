@@ -208,11 +208,6 @@ public:
 	DisplacementHistory& MeasuredHistory() { return m_measured; }
 	const DisplacementHistory& MeasuredHistory() const { return m_measured; }
 
-	/**
-	 * @brief Access the active measured displacement set.
-	 */
-	DisplacementContainer& MeasuredData() { return m_measured.ActiveStep().displacements; }
-	const DisplacementContainer& MeasuredData() const { return m_measured.ActiveStep().displacements; }
 
 	/**
 	 * @brief Access the full virtual displacement history.
@@ -220,21 +215,7 @@ public:
 	DisplacementHistory& VirtualHistory() { return m_virtual; }
 	const DisplacementHistory& VirtualHistory() const { return m_virtual; }
 
-	/**
-	 * @brief Access the active virtual displacement set.
-	 */
-	DisplacementContainer& VirtualData() { return m_virtual.ActiveStep().displacements; }
-	const DisplacementContainer& VirtualData() const { return m_virtual.ActiveStep().displacements; }
 
-	/**
-	 * @brief Mutable access to the reconstructed deformation gradients.
-	 */
-	DeformationGradientField& DeformationGradients() { return m_defGradHistory.ActiveStep().field; }
-
-	/**
-	 * @brief Read-only access to the reconstructed deformation gradients.
-	 */
-	const DeformationGradientField& DeformationGradients() const { return m_defGradHistory.ActiveStep().field; }
 
 	DeformationGradientHistory& DeformationHistory() { return m_defGradHistory; }
 	const DeformationGradientHistory& DeformationHistory() const { return m_defGradHistory; }

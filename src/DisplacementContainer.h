@@ -135,23 +135,6 @@ public:
 	inline TimeStep& operator[](size_t index) { return m_steps.at(index); }
 	inline const TimeStep& operator[](size_t index) const { return m_steps.at(index); }
 
-	/// Access a particular step (throws when out of bounds).
-	inline TimeStep& StepAt(size_t index) { return m_steps.at(index); }
-	inline const TimeStep& StepAt(size_t index) const { return m_steps.at(index); }
-
-	/// Set active step by index (silently clamps if index exceeds available steps).
-	inline void SetActiveStepByIndex(size_t index)
-	{
-		if (m_steps.empty())
-		{
-			m_active = 0;
-		}
-		else
-		{
-			m_active = (index < m_steps.size()) ? index : (m_steps.size() - 1);
-		}
-	}
-
 	/// Find an existing step by time value within a tolerance.
 	inline TimeStep* FindStepByTime(double time, double tol = 1e-12)
 	{
@@ -169,29 +152,6 @@ public:
 			if (std::fabs(step.time - time) <= tol) return &step;
 		}
 		return nullptr;
-	}
-
-	/// Access the active step (creates an empty step when none exist).
-	inline TimeStep& ActiveStep()
-	{
-		if (m_steps.empty())
-		{
-			m_steps.push_back(TimeStep{});
-		}
-		if (m_active >= m_steps.size()) m_active = 0;
-		return m_steps[m_active];
-	}
-
-	/// Const access to the active step (returns a static empty step when no data exist).
-	inline const TimeStep& ActiveStep() const
-	{
-		if (m_steps.empty())
-		{
-			static const TimeStep empty;
-			return empty;
-		}
-		size_t idx = (m_active < m_steps.size()) ? m_active : 0;
-		return m_steps[idx];
 	}
 
 	/// Direct access to the underlying storage.
