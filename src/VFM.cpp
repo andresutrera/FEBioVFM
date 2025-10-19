@@ -14,6 +14,7 @@
 #include "VFMKinematics.h"
 #include "VFMExport.h"
 #include "VFMStress.h"
+#include <FECore/FEFacetSet.h>
 
 namespace
 {
@@ -216,6 +217,47 @@ void LogVirtualDeformationHistories(FEModel& fem, const VirtualDeformationGradie
 	}
 }
 
+void LogVirtualExternalWork(FEModel& fem, const FEOptimizeDataVFM& opt)
+{
+	const auto& workHistories = opt.VirtualExternalWork();
+	feLogDebugEx(&fem, "  Virtual external work: %zu fields", workHistories.size());
+	if (workHistories.empty())
+	{
+		feLogDebugEx(&fem, "    <none>");
+		return;
+	}
+
+	std::vector<double> times;
+	for (const auto& step : opt.MeasuredLoads().StepsRef())
+	{
+		times.push_back(step.time);
+	}
+
+	size_t fieldIdx = 0;
+	const auto& virtualFields = opt.VirtualFields();
+	for (const auto& history : workHistories)
+	{
+		std::string label = "Virtual Work ";
+		if (fieldIdx < virtualFields.Size() && !virtualFields[fieldIdx].id.empty())
+		{
+			label += "[" + virtualFields[fieldIdx].id + "]";
+		}
+		else
+		{
+			label += "[#" + std::to_string(fieldIdx) + "]";
+		}
+
+		feLogDebugEx(&fem, "    %s", label.c_str());
+		const auto& work = history.work;
+		for (size_t ti = 0; ti < work.size(); ++ti)
+		{
+			double t = (ti < times.size() ? times[ti] : static_cast<double>(ti));
+			feLogDebugEx(&fem, "      t = %-12g Wext = %-12g", t, work[ti]);
+		}
+		++fieldIdx;
+	}
+}
+
 void LogStressHistory(FEModel& fem, const StressHistory& history)
 {
 	feLogDebugEx(&fem, "  Stresses: %zu steps", history.Steps());
@@ -267,6 +309,7 @@ void LogSetupDiagnostics(FEOptimizeDataVFM& opt)
 	LogDisplacementHistory(*fem, "Measured", opt.MeasuredHistory());
 	LogVirtualFields(*fem, opt.VirtualFields());
 	LogVirtualDeformationHistories(*fem, opt.VirtualDeformationGradients());
+	LogVirtualExternalWork(*fem, opt);
 	LogLoadHistory(*fem, opt.MeasuredLoads());
 	LogDeformationHistory(*fem, opt.DeformationHistory());
 }
@@ -471,115 +514,123 @@ bool FEVFMTask::BuildStressHistoryStage()
 
 bool FEVFMTask::ComputeExternalWork()
 {
-	// Gather references to the histories involved in the external work calculation.
 	const auto& loadsHistory = m_opt.MeasuredLoads();
 	const auto& virtualFields = m_opt.VirtualFields();
 	auto& workHistories = m_opt.VirtualExternalWork();
 	workHistories.clear();
 
-	// If no virtual fields were defined there is nothing to do.
-	if (virtualFields.Empty()) return true;
+	const auto& loadSteps = loadsHistory.StepsRef();
+	const size_t T = loadSteps.size();
+	const size_t N = virtualFields.Size();
+	if ((T == 0) || (N == 0)) return true;
 
-	// Prepare storage: one scalar history per virtual field.
-	workHistories.resize(virtualFields.Size());
-
-	// Build the list of time stamps present in the measured load history.
-	std::vector<double> times;
-	for (const auto& step : loadsHistory.StepsRef())
+	std::vector<double> times(T, 0.0);
+	for (size_t t = 0; t < T; ++t)
 	{
-		times.push_back(step.time);
+		times[t] = loadSteps[t].time;
 	}
 
-	const size_t timeCount = times.size();
-
-	for (size_t vi = 0; vi < virtualFields.Size(); ++vi)
+	std::vector<std::string> surfaces;
+	for (size_t t = 0; t < T; ++t)
 	{
-		auto& workVec = workHistories[vi].work;
-		workVec.assign(timeCount, 0.0);
-	}
-
-	// Cache the sets of mesh nodes that belong to each loaded surface.
-	std::unordered_map<std::string, std::vector<int>> surfaceNodes;
-	FEMesh& mesh = m_opt.GetFEModel()->GetMesh();
-	for (const auto& loadStep : loadsHistory.StepsRef())
-	{
-		for (const auto& sample : loadStep.loads.Samples())
+		const auto& samples = loadSteps[t].loads.Samples();
+		for (size_t s = 0; s < samples.size(); ++s)
 		{
-			if (surfaceNodes.find(sample.id) != surfaceNodes.end()) continue;
-
-			std::vector<int> nodeIds;
-			if (FESurface* surface = mesh.FindSurface(sample.id.c_str()); surface != nullptr)
+			const std::string& name = samples[s].id;
+			bool exists = false;
+			for (size_t k = 0; k < surfaces.size(); ++k)
 			{
-				FENodeList nodeList = surface->GetNodeList();
-				nodeIds.reserve(nodeList.Size());
-				for (int i = 0; i < nodeList.Size(); ++i)
+				if (surfaces[k] == name)
 				{
-					const FENode* node = nodeList.Node(i);
-					if (node) nodeIds.push_back(node->GetID());
+					exists = true;
+					break;
 				}
 			}
-
-			surfaceNodes.emplace(sample.id, std::move(nodeIds));
+			if (!exists) surfaces.push_back(name);
 		}
 	}
 
-	// Loop over every time point and virtual field, accumulating the external work.
-	for (size_t ti = 0; ti < timeCount; ++ti)
+	const size_t K = surfaces.size();
+	std::vector<std::vector<int>> surfaceNodes(K);
+	FEMesh& mesh = m_opt.GetFEModel()->GetMesh();
+	for (size_t k = 0; k < K; ++k)
 	{
-		double time = times[ti];
-		const auto* loadStep = loadsHistory.FindStepByTime(time);
-		if (loadStep == nullptr) continue;
+		const std::string& sid = surfaces[k];
+		std::vector<int>& nodes = surfaceNodes[k];
 
-		// Map each surface id to its resultant force vector at the current time.
-		std::unordered_map<std::string, vec3d> loadMap;
-		for (const auto& sample : loadStep->loads.Samples())
+		FESurface* surface = mesh.FindSurface(sid.c_str());
+		if (surface != nullptr)
 		{
-			loadMap.emplace(sample.id, sample.load);
+			FENodeList list = surface->GetNodeList();
+			for (int i = 0; i < list.Size(); ++i)
+			{
+				const FENode* node = list.Node(i);
+				if (node) nodes.push_back(node->GetID());
+			}
 		}
+		else
+		{
+			FEFacetSet* facets = mesh.FindFacetSet(sid.c_str());
+			if (facets != nullptr)
+			{
+				FENodeList list = facets->GetNodeList();
+				for (int i = 0; i < list.Size(); ++i)
+				{
+					const FENode* node = list.Node(i);
+					if (node) nodes.push_back(node->GetID());
+				}
+			}
+		}
+	}
 
-		for (size_t vi = 0; vi < virtualFields.Size(); ++vi)
+	std::vector<std::vector<vec3d>> forces(K, std::vector<vec3d>(T, vec3d(0, 0, 0)));
+	for (size_t t = 0; t < T; ++t)
+	{
+		const auto& samples = loadSteps[t].loads.Samples();
+		for (size_t s = 0; s < samples.size(); ++s)
+		{
+			for (size_t k = 0; k < K; ++k)
+			{
+				if (surfaces[k] == samples[s].id)
+				{
+					forces[k][t] = samples[s].load;
+					break;
+				}
+			}
+		}
+	}
+
+	workHistories.resize(N);
+	for (size_t i = 0; i < N; ++i) workHistories[i].work.assign(T, 0.0);
+
+	for (size_t i = 0; i < N; ++i)
+	{
+		const auto& field = virtualFields[i];
+		for (size_t t = 0; t < T; ++t)
 		{
 			double w = 0.0;
-			const auto& vField = virtualFields[vi];
-
-			// Locate the virtual displacement history entry for the current time.
-			const auto* vStep = vField.history.FindStepByTime(time, 1e-12);
-
-			// Iterate over all loaded surfaces and accumulate the virtual work.
-			for (const auto& kv : loadMap)
+			const DisplacementHistory::TimeStep* vStep = field.history.FindStepByTime(times[t], 1e-12);
+			for (size_t k = 0; k < K; ++k)
 			{
-				const std::string& surfaceId = kv.first;
-				const vec3d& force = kv.second;
-
-				// Retrieve the nodes that define this surface.
-				vec3d virtualDisp(0, 0, 0);
-				const auto surfIt = surfaceNodes.find(surfaceId);
-				if (vStep && surfIt != surfaceNodes.end() && !surfIt->second.empty())
+				const vec3d& fk = forces[k][t];
+				vec3d uk(0, 0, 0);
+				if (vStep != nullptr)
 				{
-					// Average the virtual displacement prescribed by the field over the surface nodes.
-					int contributingNodes = 0;
-					for (int nodeId : surfIt->second)
+					const std::vector<int>& nodes = surfaceNodes[k];
+					for (size_t n = 0; n < nodes.size(); ++n)
 					{
 						std::array<double, 3> disp{};
-						if (vStep->displacements.TryGet(nodeId, disp))
+						if (vStep->displacements.TryGet(nodes[n], disp))
 						{
-							virtualDisp.x += disp[0];
-							virtualDisp.y += disp[1];
-							virtualDisp.z += disp[2];
-							++contributingNodes;
+							uk = vec3d(disp[0], disp[1], disp[2]);
+							break;
 						}
 					}
-					if (contributingNodes > 0)
-					{
-						virtualDisp /= static_cast<double>(contributingNodes);
-					}
 				}
-
-				// Accumulate the dot product to form the external work contribution for this field and time.
-				w += force * virtualDisp;
+				feLogDebugEx(m_opt.GetFEModel(), "    surface %s : force = (%g, %g, %g) u* = (%g, %g, %g)", surfaces[k].c_str(), fk.x, fk.y, fk.z, uk.x, uk.y, uk.z);
+				w += fk * uk;
 			}
-
-			workHistories[vi].work[ti] = w;
+			workHistories[i].work[t] = w;
 		}
 	}
 

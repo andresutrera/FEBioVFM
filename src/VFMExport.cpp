@@ -263,7 +263,7 @@ struct VFMExportSession::Impl
 			delete plotVar;
 			return false;
 		}
-		feLogEx(&fem, "VFM export: registered plot field '%s'", "Virtual Displacement");
+		feLogEx(&fem, "VFM export: registered plot field '%s'", "Virtual Displacement\n");
 		virtualRefs.push_back(nullptr);
 		virtualPlots.push_back(plotVar);
 		return true;
@@ -293,7 +293,7 @@ struct VFMExportSession::Impl
 			return false;
 		}
 
-		feLogEx(&fem, "VFM export: registered plot field '%s'", varName.c_str());
+		feLogEx(&fem, "VFM export: registered plot field '%s'\n", varName.c_str());
 		virtualRefs.push_back(&field);
 		virtualPlots.push_back(plotVar);
 			AppendTimes(field.history);
@@ -330,7 +330,7 @@ struct VFMExportSession::Impl
 			return false;
 		}
 
-		feLogEx(&fem, "VFM export: registered plot field '%s'", varName.c_str());
+		feLogEx(&fem, "VFM export: registered plot field '%s'\n", varName.c_str());
 		virtualDefRefs.push_back(&field);
 		virtualDefPlots.push_back(plotVar);
 			AppendTimes(field.history);
