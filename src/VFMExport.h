@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <memory>
 #include <string>
 
 #include "VirtualDisplacementContainer.h"
@@ -15,22 +16,25 @@ class DeformationGradientHistory;
 class StressHistory;
 
 /**
- * @brief Export measured/virtual displacements and deformation gradients to an XPLT file.
+ * @brief Helper class that stages VFM export data and writes it to an XPLT file.
  *
- * @param filePath Destination path for the generated plot file.
- * @param fem      Reference to the FEModel that owns the mesh being exported.
- * @param measuredHist Timeline of measured nodal displacements.
- * @param virtualHist  Timeline of virtual nodal displacements.
- * @param defHist      Timeline of Gauss-point deformation gradients reconstructed by the VFM kinematics pass.
- * @param stressHist   Timeline of Gauss-point stresses reconstructed from deformation gradients.
- * @param error    Filled with a descriptive message when the export fails.
- * @return true on success, false otherwise.
+ * The session registers plot variables lazily as the caller adds data sets and
+ * postpones the actual file write until @c Finalize is invoked.
  */
-bool ExportVFMKinematics(const std::string& filePath,
-	FEModel& fem,
-	const DisplacementHistory& measuredHist,
-	const VirtualDisplacementCollection& virtualFields,
-	const VirtualDeformationGradientCollection& virtualGradients,
-	const DeformationGradientHistory& defHist,
-	const StressHistory& stressHist,
-	std::string& error);
+class VFMExportSession
+{
+public:
+	VFMExportSession(const std::string& filePath, FEModel& fem);
+	~VFMExportSession();
+
+	bool AddMeasuredDisplacements(const DisplacementHistory& hist, std::string& error);
+	bool AddVirtualDisplacements(const VirtualDisplacementCollection& fields, std::string& error);
+	bool AddVirtualDeformationGradients(const VirtualDeformationGradientCollection& fields, std::string& error);
+	bool AddMeasuredDeformationGradients(const DeformationGradientHistory& hist, std::string& error);
+	bool AddMeasuredStress(const StressHistory& hist, std::string& error);
+	bool Finalize(std::string& error);
+
+private:
+	struct Impl;
+	std::unique_ptr<Impl> m_impl;
+};

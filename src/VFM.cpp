@@ -492,14 +492,33 @@ bool FEVFMTask::ExportState(const char* szfile)
 	}
 
 	std::string exportError;
-	if (!ExportVFMKinematics(plotPath,
-		*m_opt.GetFEModel(),
-		m_opt.MeasuredHistory(),
-		m_opt.VirtualFields(),
-		m_opt.VirtualDeformationGradients(),
-		m_opt.DeformationHistory(),
-		m_opt.StressTimeline(),
-		exportError))
+	VFMExportSession session(plotPath, *m_opt.GetFEModel());
+	if (!session.AddMeasuredDisplacements(m_opt.MeasuredHistory(), exportError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		return false;
+	}
+	if (!session.AddVirtualDisplacements(m_opt.VirtualFields(), exportError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		return false;
+	}
+	if (!session.AddVirtualDeformationGradients(m_opt.VirtualDeformationGradients(), exportError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		return false;
+	}
+	if (!session.AddMeasuredDeformationGradients(m_opt.DeformationHistory(), exportError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		return false;
+	}
+	if (!session.AddMeasuredStress(m_opt.StressTimeline(), exportError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		return false;
+	}
+	if (!session.Finalize(exportError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
 		return false;
