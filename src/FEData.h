@@ -271,6 +271,14 @@ public:
 	std::vector<VirtualExternalWorkHistory>& VirtualExternalWork() { return m_virtualExternalWork; }
 	const std::vector<VirtualExternalWorkHistory>& VirtualExternalWork() const { return m_virtualExternalWork; }
 
+	bool SetParameterVector(const std::vector<double>& values, std::string& errorMessage);
+	void GetParameterVector(std::vector<double>& values) const;
+	bool ResetParametersToInitial(std::string& errorMessage);
+	const std::vector<double>& InitialParameterVector() const { return m_initialParameters; }
+
+	bool RebuildStressHistories(std::string& errorMessage);
+	bool RebuildStressHistories(const std::vector<double>& parameterValues, bool restoreOriginalValues, std::string& errorMessage);
+
 	/**
 	 * @brief Solve the forward FE problem with a proposed parameter vector.
 	 * @param a Ordered list of parameter values sourced from the optimizer.
@@ -300,6 +308,7 @@ public:
 	 * @brief Retrieve a parameter by position.
 	 */
 	FEInputParameterVFM* GetInputParameter(int n) { return m_Var[n]; }
+	const FEInputParameterVFM* GetInputParameter(int n) const { return m_Var[n]; }
 
 public:
 
@@ -320,4 +329,10 @@ protected:
 	DeformationGradientHistory m_defGradHistory; ///< Deformation gradient history.
 	StressHistory m_stressHistory; ///< Cauchy stress history reconstructed from deformation gradients.
 	FirstPiolaHistory m_firstPiolaHistory; ///< First Piola-Kirchhoff stress history.
+
+private:
+	bool RebuildStressHistoriesInternal(std::string& errorMessage);
+
+private:
+	std::vector<double> m_initialParameters; ///< Parameter vector captured after initialization.
 };

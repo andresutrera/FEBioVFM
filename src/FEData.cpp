@@ -2,6 +2,7 @@
 #include <FEBioMech/stdafx.h>
 #include "FEData.h"
 #include "FEVFMInput.h"
+#include "VFMStress.h"
 #include <FECore/FECoreKernel.h>
 #include <FECore/FEModel.h>
 #include <FECore/FEAnalysis.h>
@@ -151,6 +152,9 @@ bool FEOptimizeDataVFM::Init()
 	// if (m_pTask->Init(0) == false) return false;
 	GetFEModel()->UnBlockLog();
 
+	m_initialParameters.clear();
+	m_initialParameters.resize(m_Var.size(), 0.0);
+
 	// initialize all input parameters
 	for (int i=0; i<(int)m_Var.size(); ++i)
 	{
@@ -159,6 +163,7 @@ bool FEOptimizeDataVFM::Init()
 
 		// set the initial value
 		p->SetValue(p->InitValue());
+		m_initialParameters[i] = p->GetValue();
 	}
 
 	// initialize the objective function
@@ -210,4 +215,127 @@ bool FEOptimizeDataVFM::Input(const char *szfile)
 bool FEOptimizeDataVFM::FESolve(const vector<double>& a)
 {
 	return false;
+}
+
+bool FEOptimizeDataVFM::SetParameterVector(const std::vector<double>& values, std::string& errorMessage)
+{
+	if (values.size() != m_Var.size())
+	{
+		errorMessage = "Parameter vector length mismatch.";
+		return false;
+	}
+
+	for (size_t i = 0; i < m_Var.size(); ++i)
+	{
+		FEInputParameterVFM* param = m_Var[i];
+		if (param == nullptr)
+		{
+			errorMessage = "Encountered an uninitialized parameter slot at index " + std::to_string(i) + ".";
+			return false;
+		}
+
+		if (!param->SetValue(values[i]))
+		{
+			errorMessage = "Failed to assign parameter '" + param->GetName() + "'.";
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void FEOptimizeDataVFM::GetParameterVector(std::vector<double>& values) const
+{
+	values.resize(m_Var.size());
+	for (size_t i = 0; i < m_Var.size(); ++i)
+	{
+		FEInputParameterVFM* param = m_Var[i];
+		values[i] = (param ? param->GetValue() : 0.0);
+	}
+}
+
+bool FEOptimizeDataVFM::ResetParametersToInitial(std::string& errorMessage)
+{
+	if (m_initialParameters.size() != m_Var.size())
+	{
+		errorMessage = "Initial parameter vector was not captured correctly.";
+		return false;
+	}
+	return SetParameterVector(m_initialParameters, errorMessage);
+}
+
+bool FEOptimizeDataVFM::RebuildStressHistories(std::string& errorMessage)
+{
+	return RebuildStressHistoriesInternal(errorMessage);
+}
+
+bool FEOptimizeDataVFM::RebuildStressHistories(const std::vector<double>& parameterValues,
+	bool restoreOriginalValues,
+	std::string& errorMessage)
+{
+	std::vector<double> originalValues;
+	if (restoreOriginalValues)
+	{
+		GetParameterVector(originalValues);
+	}
+
+	if (!parameterValues.empty())
+	{
+		if (!SetParameterVector(parameterValues, errorMessage))
+		{
+			return false;
+		}
+	}
+
+	const bool result = RebuildStressHistoriesInternal(errorMessage);
+
+	if (restoreOriginalValues)
+	{
+		std::string restoreError;
+		if (!SetParameterVector(originalValues, restoreError))
+		{
+			errorMessage = restoreError;
+			return false;
+		}
+	}
+
+	return result;
+}
+
+bool FEOptimizeDataVFM::RebuildStressHistoriesInternal(std::string& errorMessage)
+{
+	auto& defHistory = DeformationHistory();
+	auto& stressHistory = StressTimeline();
+	auto& piolaHistory = FirstPiolaTimeline();
+
+	stressHistory.Clear();
+	stressHistory.Reserve(defHistory.Steps());
+	piolaHistory.Clear();
+	piolaHistory.Reserve(defHistory.Steps());
+
+	if (defHistory.Empty()) return true;
+
+	for (const auto& defStep : defHistory)
+	{
+		auto& stressStep = stressHistory.AddStep(defStep.time);
+		auto& piolaStep = piolaHistory.AddStep(defStep.time);
+
+		if (!VFMStress::ComputeCauchyStress(*GetFEModel(),
+			defStep.field,
+			stressStep.field,
+			errorMessage))
+		{
+			return false;
+		}
+
+		if (!VFMStress::ComputeFirstPiolaStress(defStep.field,
+			stressStep.field,
+			piolaStep.field,
+			errorMessage))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }

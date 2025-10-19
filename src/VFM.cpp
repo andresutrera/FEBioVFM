@@ -59,6 +59,38 @@ void LogParameterSummary(FEOptimizeDataVFM& opt)
 	}
 }
 
+void LogParameterValues(FEOptimizeDataVFM& opt, const char* label)
+{
+	FEModel* fem = opt.GetFEModel();
+	if (fem == nullptr) return;
+
+	std::vector<double> values;
+	opt.GetParameterVector(values);
+
+	feLogDebugEx(fem, "  %s parameter values (%zu)", label, values.size());
+	if (values.empty())
+	{
+		feLogDebugEx(fem, "    <none>");
+		return;
+	}
+
+	for (size_t i = 0; i < values.size(); ++i)
+	{
+		FEInputParameterVFM* param = opt.GetInputParameter(static_cast<int>(i));
+		std::string name;
+		if (param != nullptr)
+		{
+			name = param->GetName();
+			if (name.empty()) name = "#" + std::to_string(i);
+		}
+		else
+		{
+			name = "#" + std::to_string(i);
+		}
+		feLogDebugEx(fem, "    %-20s = %-12g", name.c_str(), values[i]);
+	}
+}
+
 void LogDisplacementHistory(FEModel& fem, const char* label, const DisplacementHistory& history)
 {
 	feLogDebugEx(&fem, "  %s displacements: %zu steps", label, history.Steps());
@@ -361,48 +393,14 @@ void LogStressDiagnostics(FEOptimizeDataVFM& opt)
 	if (fem == nullptr) return;
 
 	feLogDebugEx(fem, "---- VFM Diagnostics (stresses) ----------------------");
+	LogParameterValues(opt, "Current");
 	LogStressHistory(*fem, opt.StressTimeline());
 	LogFirstPiolaHistory(*fem, opt.FirstPiolaTimeline());
 }
 
 bool BuildStressHistory(FEOptimizeDataVFM& opt, std::string& errorMessage)
 {
-	auto& defHistory = opt.DeformationHistory();
-	auto& stressHistory = opt.StressTimeline();
-	auto& piolaHistory = opt.FirstPiolaTimeline();
-
-	stressHistory.Clear();
-	stressHistory.Reserve(defHistory.Steps());
-	piolaHistory.Clear();
-	piolaHistory.Reserve(defHistory.Steps());
-
-	if (defHistory.Empty()) return true;
-
-	for (const auto& defStep : defHistory)
-	{
-		auto& stressStep = stressHistory.AddStep(defStep.time);
-		auto& piolaStep = piolaHistory.AddStep(defStep.time);
-
-		if (!VFMStress::ComputeCauchyStress(*opt.GetFEModel(),
-			defStep.field,
-			stressStep.field,
-			errorMessage))
-		{
-			return false;
-		}
-
-		if (!VFMStress::ComputeFirstPiolaStress(defStep.field,
-			stressStep.field,
-			piolaStep.field,
-			errorMessage))
-		{
-			return false;
-		}
-
-		// feLog("VFM: computed stresses for t = %g\n", defStep.time);
-	}
-
-	return true;
+	return opt.RebuildStressHistories(errorMessage);
 }
 
 } // namespace
@@ -557,6 +555,13 @@ bool FEVFMTask::ValidateDataConsistency()
 
 bool FEVFMTask::BuildStressHistoryStage()
 {
+	std::string resetError;
+	if (!m_opt.ResetParametersToInitial(resetError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), resetError.c_str());
+		return false;
+	}
+
 	std::string stressError;
 	if (!BuildStressHistory(m_opt, stressError))
 	{
