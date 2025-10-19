@@ -6,6 +6,7 @@
 #include "DisplacementContainer.h"
 #include "DeformationGradientField.h"
 #include "StressField.h"
+#include "MeasuredLoadContainer.h"
 
 /**
  * @brief Abstract base for a scalar optimization variable used by the VFM plugin.
@@ -208,6 +209,12 @@ public:
 	DisplacementHistory& MeasuredHistory() { return m_measured; }
 	const DisplacementHistory& MeasuredHistory() const { return m_measured; }
 
+	/**
+	 * @brief Access the full measured surface load history.
+	 */
+	MeasuredLoadHistory& MeasuredLoads() { return m_measuredLoads; }
+	const MeasuredLoadHistory& MeasuredLoads() const { return m_measuredLoads; }
+
 
 	/**
 	 * @brief Access the full virtual displacement history.
@@ -266,6 +273,7 @@ protected:
 	std::vector<FEInputParameterVFM*>	    m_Var; ///< Registered optimization variables (non-owning).
 	DisplacementHistory m_measured; ///< Experimentally measured displacement history.
 	DisplacementHistory m_virtual;  ///< Prescribed virtual displacement history.
+	MeasuredLoadHistory m_measuredLoads; ///< Experimentally measured surface load history.
 	DeformationGradientHistory m_defGradHistory; ///< Deformation gradient history.
 	StressHistory m_stressHistory; ///< Stress history reconstructed from deformation gradients.
 };

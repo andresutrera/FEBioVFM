@@ -34,7 +34,7 @@ class FEOptimizeDataVFM;
 	 * This helper extracts parameter definitions from the XML format used by the
 	 * original FEBio optimization module and forwards the results to
 	 * FEOptimizeDataVFM. It currently understands <Parameters>, <MeasuredDisplacements>,
-	 * and <VirtualDisplacements>, mirroring the limited data required by the experimental
+	 * <VirtualDisplacements>, and <MeasuredLoads>, mirroring the limited data required by the experimental
 	 * scaffold.
  *
  * @note Additional sections (objective functions, constraints, etc.) can be
@@ -81,6 +81,12 @@ private:
 		 * drive the inverse analysis portion of the VFM workflow.
 		 */
 			void ParseVirtualDisplacements(XMLTag& tag);
+
+		/**
+		 * @brief Parse the <MeasuredLoads> subsection of the optimization input.
+		 * @param tag XML tag positioned at the <MeasuredLoads> node.
+		 */
+		void ParseMeasuredLoads(XMLTag& tag);
 
 private:
 			FEOptimizeDataVFM*	m_opt; ///< Destination optimization container populated during parsing.

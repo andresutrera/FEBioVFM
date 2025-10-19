@@ -7,6 +7,7 @@
 #include <string>
 #include <algorithm>
 #include <cmath>
+#include <unordered_set>
 
 #include <FECore/FEModel.h>
 #include <FECore/FEMesh.h>
@@ -90,8 +91,6 @@ public:
 		{
 			const auto& measStep = measuredHistory[i];
 			const auto& virtStep = virtualHistory[i];
-			const auto& defStep = data.DeformationHistory()[i];
-
 			const size_t countMeasured = measStep.displacements.Size();
 			const size_t countVirtual = virtStep.displacements.Size();
 
@@ -107,6 +106,97 @@ public:
 				return false;
 			}
 
+		}
+
+		return true;
+	}
+
+	/**
+	 * @brief Ensure measured load history has the same time coverage as measured displacements.
+	 * @param data Optimisation container with displacement and load histories.
+	 * @param errorMessage Populated when the validation fails.
+	 * @return true when each measured displacement time has corresponding loads for all surfaces.
+	 */
+	static inline bool ValidateMeasuredLoads(const FEOptimizeDataVFM& data, std::string& errorMessage)
+	{
+		const auto& measuredHistory = data.MeasuredHistory();
+		const auto& loadHistory = data.MeasuredLoads();
+
+		if (measuredHistory.Empty())
+		{
+			errorMessage = "Measured displacement history is empty.";
+			return false;
+		}
+
+		if (loadHistory.Empty())
+		{
+			errorMessage = "Measured load history is empty.";
+			return false;
+		}
+
+		if (loadHistory.Steps() != measuredHistory.Steps())
+		{
+			errorMessage = "Measured load history contains " + std::to_string(loadHistory.Steps()) +
+				" time steps; expected " + std::to_string(measuredHistory.Steps()) + " like measured displacements.";
+			return false;
+		}
+
+		// Gather the union of surfaces defined across the load history.
+		std::unordered_set<std::string> referenceSurfaces;
+		for (const auto& loadStep : loadHistory)
+		{
+			for (const SurfaceLoadSample& sample : loadStep.loads.Samples())
+			{
+				if (sample.id.empty())
+				{
+					errorMessage = "Measured load history contains a surface entry with an empty id.";
+					return false;
+				}
+				referenceSurfaces.insert(sample.id);
+			}
+		}
+
+		if (referenceSurfaces.empty())
+		{
+			errorMessage = "Measured load history does not define any surfaces.";
+			return false;
+		}
+
+		for (const auto& measStep : measuredHistory)
+		{
+			const auto* loadStep = loadHistory.FindStepByTime(measStep.time);
+			if (loadStep == nullptr)
+			{
+				errorMessage = "Measured load history missing timestep for t = " + std::to_string(measStep.time) + ".";
+				return false;
+			}
+
+			const double loadTime = loadStep->time;
+			const SurfaceLoadSet& loads = loadStep->loads;
+			if (loads.Size() != referenceSurfaces.size())
+			{
+				errorMessage = "Measured load history at t = " + std::to_string(loadTime) +
+					" defines " + std::to_string(loads.Size()) + " surfaces; expected " +
+					std::to_string(referenceSurfaces.size()) + ".";
+				return false;
+			}
+
+			std::unordered_set<std::string> encountered;
+			for (const SurfaceLoadSample& sample : loads.Samples())
+			{
+				if (referenceSurfaces.find(sample.id) == referenceSurfaces.end())
+				{
+					errorMessage = "Unexpected surface \"" + sample.id + "\" in measured loads at t = " + std::to_string(loadTime) + ".";
+					return false;
+				}
+				encountered.insert(sample.id);
+			}
+
+			if (encountered.size() != referenceSurfaces.size())
+			{
+				errorMessage = "Duplicate or missing surface entries detected in measured loads at t = " + std::to_string(loadTime) + ".";
+				return false;
+			}
 		}
 
 		return true;

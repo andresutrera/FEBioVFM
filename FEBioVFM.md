@@ -77,8 +77,24 @@ the VFM.
 
 Both `<node>` and legacy `<elem>` tags are accepted for backwards compatibility,
 but the data are always treated as nodal quantities.  After parsing, the two
-containers are stored in `FEOptimizeDataVFM` via the `MeasuredData()` /
-`VirtualData()` accessors.
+containers live on a time history; access individual steps with
+`FEOptimizeDataVFM::MeasuredHistory()[i]` and `::VirtualHistory()[i]`, each of
+which exposes the samples collected for that time point.
+
+Measured surface loads follow a similar pattern:
+
+```xml
+<MeasuredLoads>
+    <time t="0.0">
+        <surface id="left_grip">Fx, Fy, Fz</surface>
+        <surface id="right_grip">Fx, Fy, Fz</surface>
+    </time>
+</MeasuredLoads>
+```
+
+Loads are available through `FEOptimizeDataVFM::MeasuredLoads()[i].loads`.
+Individual surfaces can be queried by name with `SurfaceLoadSet::Find` or
+`::TryGet`, both of which return `vec3d` force vectors.
 
 For debugging, a `LogDebugSummary()` method lists every parsed parameter and
 displacement sample using `feLogDebugEx`, so the information is only displayed

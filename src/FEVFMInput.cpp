@@ -4,6 +4,7 @@
 #include <FECore/FECoreKernel.h>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include "FEData.h"
 //=============================================================================
 // FEVFMInput
@@ -14,7 +15,7 @@
  *
  * The function validates the root tag (<febio_optimize version="2.0">) before
  * delegating parsing to finer grained helpers. The parser currently recognizes
- * <Parameters>, <MeasuredDisplacements>, and <VirtualDisplacements>; unsupported
+ * <Parameters>, <MeasuredDisplacements>, <VirtualDisplacements>, and <MeasuredLoads>; unsupported
  * tags trigger an exception that bubbles up to the caller as a failure.
  *
  * @note Error handling mirrors the classic FEBio loader by printing messages to
@@ -71,6 +72,11 @@ bool FEVFMInput::Input(const char* szfile, FEOptimizeDataVFM* pOpt)
 		else if (tag == "VirtualDisplacements")
 		{
 			ParseVirtualDisplacements(tag);
+			tag.skip();
+		}
+		else if (tag == "MeasuredLoads")
+		{
+			ParseMeasuredLoads(tag);
 			tag.skip();
 		}
 		else
@@ -201,6 +207,55 @@ void ParseDisplacementBlock(XMLTag& tag, DisplacementHistory& history)
 
 }
 
+void ParseMeasuredLoadsBlock(XMLTag& tag, MeasuredLoadHistory& history)
+{
+	history.Clear();
+
+	XMLTag timeTag(tag);
+	++timeTag;
+	bool found = false;
+	while (!timeTag.isend())
+	{
+		if (timeTag == "time")
+		{
+			found = true;
+			double timeValue = 0.0;
+			timeTag.AttributeValue("t", timeValue, true);
+			auto& step = history.AddStep(timeValue);
+
+			XMLTag surfaceTag = timeTag;
+			++surfaceTag;
+			while (!surfaceTag.isend())
+			{
+				if (surfaceTag == "surface")
+				{
+					const char* szId = surfaceTag.AttributeValue("id");
+					std::string surfaceId = (szId != nullptr) ? szId : "";
+
+					double loadValues[3] = { 0, 0, 0 };
+					surfaceTag.value(loadValues, 3);
+					step.loads.Add(surfaceId, vec3d(loadValues[0], loadValues[1], loadValues[2]));
+				}
+				else
+				{
+					throw XMLReader::InvalidTag(surfaceTag);
+				}
+
+				surfaceTag.skip();
+				++surfaceTag;
+			}
+		}
+
+		timeTag.skip();
+		++timeTag;
+	}
+
+	if (!found)
+	{
+		throw XMLReader::InvalidTag(tag);
+	}
+}
+
 } // namespace
 
 /**
@@ -229,4 +284,14 @@ void FEVFMInput::ParseMeasuredDisplacements(XMLTag& tag)
 void FEVFMInput::ParseVirtualDisplacements(XMLTag& tag)
 {
 	ParseDisplacementBlock(tag, m_opt->VirtualHistory());
+}
+
+/**
+ * @brief Parse measured surface loads from the XML input.
+ *
+ * @param tag XML tag positioned at <MeasuredLoads>.
+ */
+void FEVFMInput::ParseMeasuredLoads(XMLTag& tag)
+{
+	ParseMeasuredLoadsBlock(tag, m_opt->MeasuredLoads());
 }

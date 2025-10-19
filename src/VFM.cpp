@@ -88,6 +88,38 @@ void LogDisplacementHistory(FEModel& fem, const char* label, const DisplacementH
 	}
 }
 
+void LogLoadHistory(FEModel& fem, const MeasuredLoadHistory& history)
+{
+	feLogDebugEx(&fem, "  Measured loads: %zu steps", history.Steps());
+	if (history.Steps() == 0)
+	{
+		feLogDebugEx(&fem, "    <none>");
+		return;
+	}
+
+	size_t stepIdx = 0;
+	for (const auto& step : history)
+	{
+		const auto& set = step.loads;
+		feLogDebugEx(&fem, "    [%02zu] t = %-12g surfaces = %zu", stepIdx++, step.time, set.Size());
+
+		if (set.Size() == 0)
+		{
+			feLogDebugEx(&fem, "      <no load samples>");
+			continue;
+		}
+
+		for (const SurfaceLoadSample& sample : set.Samples())
+		{
+			feLogDebugEx(&fem, "      %-12s : Fx=%-12g Fy=%-12g Fz=%-12g",
+				sample.id.c_str(),
+				sample.load.x,
+				sample.load.y,
+				sample.load.z);
+		}
+	}
+}
+
 void LogDeformationHistory(FEModel& fem, const DeformationGradientHistory& history)
 {
 	feLogDebugEx(&fem, "  Deformation gradients: %zu steps", history.Steps());
@@ -179,6 +211,7 @@ void LogSetupDiagnostics(FEOptimizeDataVFM& opt)
 	LogParameterSummary(opt);
 	LogDisplacementHistory(*fem, "Measured", opt.MeasuredHistory());
 	LogDisplacementHistory(*fem, "Virtual ", opt.VirtualHistory());
+	LogLoadHistory(*fem, opt.MeasuredLoads());
 	LogDeformationHistory(*fem, opt.DeformationHistory());
 }
 
@@ -305,6 +338,12 @@ bool FEVFMTask::Init(const char* szfile)
 
 
 	if (!VFMValidation::ValidateDisplacementCounts(*m_opt.GetFEModel(), m_opt, validationError))
+	{
+		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
+		return false;
+	}
+
+	if (!VFMValidation::ValidateMeasuredLoads(m_opt, validationError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
 		return false;
