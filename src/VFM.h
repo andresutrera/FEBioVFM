@@ -77,6 +77,7 @@ private:
 
     FEVFMContext m_context;      ///< Task-wide context populated during Init().
     FEOptimizeDataVFM	m_opt;    ///< Optimization data wrapper responsible for parsing input.
+    std::string m_inputFile;     ///< Original VFM data path used to derive export filenames.
 };
 
 namespace FEBioVFM

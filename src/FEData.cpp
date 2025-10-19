@@ -3,6 +3,7 @@
 #include "FEData.h"
 #include "FEVFMInput.h"
 #include "VFMStress.h"
+#include "levmar/levmar.h"
 #include <FECore/FECoreKernel.h>
 #include <FECore/FEModel.h>
 #include <FECore/FEAnalysis.h>
@@ -11,6 +12,8 @@
 #include <FECore/FEDomain.h>
 #include <FECore/FESolidDomain.h>
 #include <FECore/FESolidElement.h>
+#include <algorithm>
+#include <limits>
 #include <unordered_map>
 
 namespace
@@ -36,6 +39,59 @@ mat3d VirtualGradientFromDeformation(const mat3d& Fstar)
 	G[1][1] -= 1.0;
 	G[2][2] -= 1.0;
 	return G;
+}
+
+struct LevmarResidualContext
+{
+	FEOptimizeDataVFM* optimizer = nullptr;
+	bool evaluationFailed = false;
+	std::string lastError;
+};
+
+void EvaluateResidualForLevmar(double* p, double* hx, int m, int n, void* adata)
+{
+	auto* context = static_cast<LevmarResidualContext*>(adata);
+	if ((hx == nullptr) || (n <= 0))
+	{
+		if (context)
+		{
+			context->evaluationFailed = true;
+			context->lastError = "Levmar requested an invalid residual buffer.";
+		}
+		return;
+	}
+
+	if ((context == nullptr) || (context->optimizer == nullptr))
+	{
+		if (context)
+		{
+			context->evaluationFailed = true;
+			context->lastError = "Levmar residual context is not configured.";
+		}
+		std::fill(hx, hx + n, 0.0);
+		return;
+	}
+
+	std::vector<double> parameters(p, p + m);
+	std::vector<double> residual;
+	std::string errorMessage;
+	if (!context->optimizer->AssembleResidual(parameters, false, residual, errorMessage))
+	{
+		context->evaluationFailed = true;
+		context->lastError = errorMessage;
+		std::fill(hx, hx + n, 0.0);
+		return;
+	}
+
+	if (static_cast<int>(residual.size()) != n)
+	{
+		context->evaluationFailed = true;
+		context->lastError = "Residual size mismatch during levmar evaluation.";
+		std::fill(hx, hx + n, 0.0);
+		return;
+	}
+
+	std::copy(residual.begin(), residual.end(), hx);
 }
 
 } // namespace
@@ -95,6 +151,162 @@ bool FEModelParameterVFM::Init()
 		return false;
 	}
 
+	return true;
+}
+
+bool FEOptimizeDataVFM::MinimizeResidualWithLevmar(int maxIterations, std::vector<double>* infoOut, std::string& errorMessage)
+{
+	errorMessage.clear();
+
+	const int parameterCount = static_cast<int>(m_Var.size());
+	if (parameterCount == 0)
+	{
+		errorMessage = "No optimization parameters are registered.";
+		return false;
+	}
+
+	std::vector<double> parameters;
+	GetParameterVector(parameters);
+	const std::vector<double> initialParameters = parameters;
+
+	if (static_cast<int>(parameters.size()) != parameterCount)
+	{
+		errorMessage = "Parameter vector length mismatch.";
+		return false;
+	}
+
+	std::vector<double> residual;
+	if (!AssembleResidual(residual, errorMessage))
+	{
+		return false;
+	}
+
+	const int residualCount = static_cast<int>(residual.size());
+	if (residualCount <= 0)
+	{
+		errorMessage = "Residual vector is empty; the Levenberg-Marquardt solver has nothing to minimize.";
+		return false;
+	}
+
+	std::vector<double> targets(residualCount, 0.0);
+
+	std::vector<double> lowerBounds(parameterCount);
+	std::vector<double> upperBounds(parameterCount);
+	for (int i = 0; i < parameterCount; ++i)
+	{
+		FEInputParameterVFM* parameter = m_Var[i];
+		if (parameter == nullptr)
+		{
+			errorMessage = "Encountered an uninitialized parameter slot at index " + std::to_string(i) + ".";
+			return false;
+		}
+
+		lowerBounds[i] = parameter->MinValue();
+		upperBounds[i] = parameter->MaxValue();
+
+		if (lowerBounds[i] > upperBounds[i])
+		{
+			std::string name = parameter->GetName();
+			if (name.empty()) name = "#" + std::to_string(i);
+			errorMessage = "Parameter '" + name + "' has invalid bounds (min greater than max).";
+			return false;
+		}
+	}
+
+	if (maxIterations <= 0) maxIterations = 100;
+
+	double opts[LM_OPTS_SZ] = { LM_INIT_MU, 1e-12, 1e-12, 1e-12, LM_DIFF_DELTA };
+	double info[LM_INFO_SZ] = { 0.0 };
+
+	const size_t workspaceSize = static_cast<size_t>(LM_BC_DIF_WORKSZ(parameterCount, residualCount));
+	std::vector<double> workspace;
+	if (workspaceSize > 0) workspace.resize(workspaceSize, 0.0);
+	double* workPtr = workspace.empty() ? nullptr : workspace.data();
+
+	LevmarResidualContext context;
+	context.optimizer = this;
+
+	const int iterations = dlevmar_bc_dif(EvaluateResidualForLevmar,
+		parameters.data(),
+		targets.data(),
+		parameterCount,
+		residualCount,
+		lowerBounds.data(),
+		upperBounds.data(),
+		nullptr,
+		maxIterations,
+		opts,
+		info,
+		workPtr,
+		nullptr,
+		&context);
+
+	if (infoOut)
+	{
+		infoOut->assign(info, info + LM_INFO_SZ);
+	}
+
+	auto restoreInitialState = [&](std::string& accumulator)
+	{
+		std::string parameterError;
+		if (!SetParameterVector(initialParameters, parameterError))
+		{
+			if (!parameterError.empty())
+			{
+				if (!accumulator.empty()) accumulator += " ";
+				accumulator += "Restore parameters: " + parameterError;
+			}
+			return;
+		}
+
+		std::string stressError;
+		if (!RebuildStressHistories(stressError))
+		{
+			if (!stressError.empty())
+			{
+				if (!accumulator.empty()) accumulator += " ";
+				accumulator += "Restore stresses: " + stressError;
+			}
+		}
+	};
+
+	if (context.evaluationFailed)
+	{
+		if (errorMessage.empty())
+		{
+			errorMessage = context.lastError.empty() ? "Residual evaluation failed during Levenberg-Marquardt iterations." : context.lastError;
+		}
+
+		restoreInitialState(errorMessage);
+		return false;
+	}
+
+	if (iterations < 0)
+	{
+		errorMessage = "dlevmar_bc_dif returned error code " + std::to_string(iterations) + ".";
+		restoreInitialState(errorMessage);
+		return false;
+	}
+
+	m_niter = iterations;
+
+	std::string parameterError;
+	if (!SetParameterVector(parameters, parameterError))
+	{
+		errorMessage = parameterError;
+		restoreInitialState(errorMessage);
+		return false;
+	}
+
+	std::string stressError;
+	if (!RebuildStressHistories(stressError))
+	{
+		errorMessage = stressError;
+		restoreInitialState(errorMessage);
+		return false;
+	}
+
+	errorMessage.clear();
 	return true;
 }
 

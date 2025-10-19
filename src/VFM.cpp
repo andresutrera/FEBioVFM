@@ -10,10 +10,12 @@
 #include <FECore/log.h>
 #include <string>
 #include <vector>
+#include <numeric>
 #include "FEData.h"
 #include "VFMKinematics.h"
 #include "VFMExport.h"
 #include "VFMStress.h"
+#include "levmar/levmar.h"
 #include <FECore/FEFacetSet.h>
 
 namespace
@@ -433,6 +435,8 @@ bool FEVFMTask::Init(const char* szfile)
 {
     feLog("V I R T U A L   F I E L D S   M E T H O D   (setup)\n");
 
+	m_inputFile = (szfile && *szfile) ? szfile : std::string();
+
 	if (!LoadInput(szfile)) return false;
 	if (!InitializeOptimization()) return false;
 	if (!ValidateModel()) return false;
@@ -699,7 +703,6 @@ bool FEVFMTask::ComputeExternalWork()
 bool FEVFMTask::LogDiagnostics()
 {
 	LogSetupDiagnostics(m_opt);
-	LogStressDiagnostics(m_opt);
 	return true;
 }
 
@@ -780,8 +783,6 @@ bool FEVFMTask::Run()
 		return false;
 	}
 
-	LogStressDiagnostics(m_opt);
-
 	feLog("VFM: stress reconstruction completed for %zu time steps.\n", m_opt.StressTimeline().Steps());
 
 	std::vector<double> initialResidual;
@@ -791,10 +792,63 @@ bool FEVFMTask::Run()
 		return false;
 	}
 
-	feLog("VFM: initial residual vector (%zu entries)\n", initialResidual.size());
-	for (size_t i = 0; i < initialResidual.size(); ++i)
+	const double initialNormSquared = std::inner_product(initialResidual.begin(), initialResidual.end(), initialResidual.begin(), 0.0);
+	const double initialCost = 0.5 * initialNormSquared;
+	feLog("VFM: initial cost = %.15g (residual entries=%zu)\n", initialCost, initialResidual.size());
+
+	feLog("VFM: launching bounded Levenberg-Marquardt solve (params=%d, residuals=%zu)\n",
+		m_opt.InputParameters(),
+		initialResidual.size());
+
+	std::vector<double> levmarInfo;
+	std::string optimizationError;
+	if (!m_opt.MinimizeResidualWithLevmar(0, &levmarInfo, optimizationError))
 	{
-		feLog("    r[%zu] = %.15g\n", i, initialResidual[i]);
+		const char* message = optimizationError.empty() ? "Unknown levmar failure." : optimizationError.c_str();
+		feLogErrorEx(m_opt.GetFEModel(), "VFM: levmar optimization failed: %s", message);
+		return false;
+	}
+
+	feLog("VFM: levmar completed after %d iterations.\n", m_opt.m_niter);
+	if (levmarInfo.size() >= LM_INFO_SZ)
+	{
+		feLog("VFM: levmar termination details: ||J^T F||=%-.6g, ||delta||=%-.6g, mu=%-.6g, stopReason=%g\n",
+			levmarInfo[1],
+			levmarInfo[2],
+			levmarInfo[4],
+			levmarInfo[6]);
+	}
+
+	LogParameterValues(m_opt, "Optimized");
+	std::vector<double> optimizedParameters;
+	m_opt.GetParameterVector(optimizedParameters);
+	feLog("VFM: final parameter values (%zu)\n", optimizedParameters.size());
+	for (size_t i = 0; i < optimizedParameters.size(); ++i)
+	{
+		FEInputParameterVFM* param = m_opt.GetInputParameter(static_cast<int>(i));
+		std::string name = param ? param->GetName() : "";
+		if (name.empty()) name = "#" + std::to_string(i);
+		feLog("    %s = %.15g\n", name.c_str(), optimizedParameters[i]);
+	}
+
+	std::vector<double> finalResidual;
+	std::string finalResidualError;
+	if (!m_opt.AssembleResidual(finalResidual, finalResidualError))
+	{
+		const char* message = finalResidualError.empty() ? "Unknown residual assembly failure." : finalResidualError.c_str();
+		feLogErrorEx(m_opt.GetFEModel(), "VFM: failed to assemble final residual: %s", message);
+		return false;
+	}
+
+	const double finalNormSquared = std::inner_product(finalResidual.begin(), finalResidual.end(), finalResidual.begin(), 0.0);
+	const double finalCost = 0.5 * finalNormSquared;
+	feLog("VFM: final cost = %.15g (residual entries=%zu)\n", finalCost, finalResidual.size());
+
+	LogStressDiagnostics(m_opt);
+
+	if (!ExportState(m_inputFile.empty() ? nullptr : m_inputFile.c_str()))
+	{
+		return false;
 	}
 
 	return true;

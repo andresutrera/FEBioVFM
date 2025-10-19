@@ -283,6 +283,16 @@ public:
 	bool AssembleResidual(const std::vector<double>& parameterValues, bool restoreOriginalValues, std::vector<double>& residual, std::string& errorMessage);
 
 	/**
+	 * @brief Minimize the residual vector using the Levenberg-Marquardt solver with bound constraints.
+	 *
+	 * @param maxIterations Maximum number of LM iterations (values <= 0 select a reasonable default).
+	 * @param infoOut Optional pointer that receives the raw LM termination metrics (LM_INFO_SZ entries).
+	 * @param errorMessage Populated when the optimization fails.
+	 * @return true when the solver converged and the model parameters reflect the final solution.
+	 */
+	bool MinimizeResidualWithLevmar(int maxIterations, std::vector<double>* infoOut, std::string& errorMessage);
+
+	/**
 	 * @brief Solve the forward FE problem with a proposed parameter vector.
 	 * @param a Ordered list of parameter values sourced from the optimizer.
 	 *
