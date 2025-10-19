@@ -7,6 +7,7 @@
 #include <string>
 
 #include "VirtualDisplacementContainer.h"
+#include "VirtualDeformationGradientContainer.h"
 
 class FEModel;
 class DisplacementHistory;
@@ -29,6 +30,7 @@ bool ExportVFMKinematics(const std::string& filePath,
 	FEModel& fem,
 	const DisplacementHistory& measuredHist,
 	const VirtualDisplacementCollection& virtualFields,
+	const VirtualDeformationGradientCollection& virtualGradients,
 	const DeformationGradientHistory& defHist,
 	const StressHistory& stressHist,
 	std::string& error);

@@ -8,6 +8,7 @@
 #include "StressField.h"
 #include "MeasuredLoadContainer.h"
 #include "VirtualDisplacementContainer.h"
+#include "VirtualDeformationGradientContainer.h"
 
 /**
  * @brief Abstract base for a scalar optimization variable used by the VFM plugin.
@@ -233,6 +234,22 @@ public:
 	 */
 	void ClearVirtualFields() { m_virtualFields.Clear(); }
 
+	/**
+	 * @brief Access all configured virtual deformation gradient histories.
+	 */
+	VirtualDeformationGradientCollection& VirtualDeformationGradients() { return m_virtualDefGradients; }
+	const VirtualDeformationGradientCollection& VirtualDeformationGradients() const { return m_virtualDefGradients; }
+
+	/**
+	 * @brief Append a new virtual deformation gradient field identified by @p fieldId.
+	 */
+	VirtualDeformationGradientCollection::Field& AddVirtualDeformationField(const std::string& fieldId) { return m_virtualDefGradients.Add(fieldId); }
+
+	/**
+	 * @brief Remove all stored virtual deformation gradient fields.
+	 */
+	void ClearVirtualDeformationFields() { m_virtualDefGradients.Clear(); }
+
 
 	DeformationGradientHistory& DeformationHistory() { return m_defGradHistory; }
 	const DeformationGradientHistory& DeformationHistory() const { return m_defGradHistory; }
@@ -284,6 +301,7 @@ protected:
 	DisplacementHistory m_measured; ///< Experimentally measured displacement history.
 	VirtualDisplacementCollection m_virtualFields; ///< Prescribed virtual displacement histories.
 	MeasuredLoadHistory m_measuredLoads; ///< Experimentally measured surface load history.
+	VirtualDeformationGradientCollection m_virtualDefGradients; ///< Deformation gradients for virtual displacement fields.
 	DeformationGradientHistory m_defGradHistory; ///< Deformation gradient history.
 	StressHistory m_stressHistory; ///< Stress history reconstructed from deformation gradients.
 };

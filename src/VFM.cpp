@@ -188,6 +188,33 @@ void LogDeformationHistory(FEModel& fem, const DeformationGradientHistory& histo
 	}
 }
 
+void LogVirtualDeformationHistories(FEModel& fem, const VirtualDeformationGradientCollection& fields)
+{
+	feLogDebugEx(&fem, "  Virtual deformation gradients: %zu", fields.Size());
+	if (fields.Empty())
+	{
+		feLogDebugEx(&fem, "    <none>");
+		return;
+	}
+
+	size_t idx = 0;
+	for (const auto& field : fields.Data())
+	{
+		std::string label = "Virtual Def ";
+		if (!field.id.empty())
+		{
+			label += "[" + field.id + "]";
+		}
+		else
+		{
+			label += "[#" + std::to_string(idx) + "]";
+		}
+		feLogDebugEx(&fem, label.c_str());
+		LogDeformationHistory(fem, field.history);
+		++idx;
+	}
+}
+
 void LogStressHistory(FEModel& fem, const StressHistory& history)
 {
 	feLogDebugEx(&fem, "  Stresses: %zu steps", history.Steps());
@@ -238,6 +265,7 @@ void LogSetupDiagnostics(FEOptimizeDataVFM& opt)
 	LogParameterSummary(opt);
 	LogDisplacementHistory(*fem, "Measured", opt.MeasuredHistory());
 	LogVirtualFields(*fem, opt.VirtualFields());
+	LogVirtualDeformationHistories(*fem, opt.VirtualDeformationGradients());
 	LogLoadHistory(*fem, opt.MeasuredLoads());
 	LogDeformationHistory(*fem, opt.DeformationHistory());
 }
@@ -354,6 +382,37 @@ bool FEVFMTask::Init(const char* szfile)
 		feLog("VFM: computed deformation gradients for t = %g\n", t);
 	}
 
+	// compute virtual deformation gradients for each virtual field
+	auto& virtualGradients = m_opt.VirtualDeformationGradients();
+	virtualGradients.Clear();
+	const auto& virtualFields = m_opt.VirtualFields();
+	size_t fieldIdx = 0;
+	for (const auto& field : virtualFields)
+	{
+		auto& outField = virtualGradients.Add(field.id);
+		outField.history.Clear();
+		outField.history.Reserve(field.history.Steps());
+
+		for (const auto& step : field.history.StepsRef())
+		{
+			auto& gradStep = outField.history.AddStep(step.time);
+			gradStep.field.Clear();
+
+			std::string virtualError;
+			if (!VFMKinematics::ComputeDeformationGradients(*m_opt.GetFEModel(),
+				step.displacements,
+				gradStep.field,
+				virtualError))
+			{
+				const std::string name = field.id.empty() ? ("#" + std::to_string(fieldIdx)) : field.id;
+				feLogErrorEx(m_opt.GetFEModel(), "Failed to compute virtual deformation gradients for field '%s' at t = %g: %s", name.c_str(), step.time, virtualError.c_str());
+				return false;
+			}
+		}
+
+		++fieldIdx;
+	}
+
 
 	if (!VFMValidation::ValidateDisplacementCounts(*m_opt.GetFEModel(), m_opt, validationError))
 	{
@@ -397,6 +456,7 @@ bool FEVFMTask::Init(const char* szfile)
 		*m_opt.GetFEModel(),
 		m_opt.MeasuredHistory(),
 		m_opt.VirtualFields(),
+		m_opt.VirtualDeformationGradients(),
 		m_opt.DeformationHistory(),
 		m_opt.StressTimeline(),
 		exportError))

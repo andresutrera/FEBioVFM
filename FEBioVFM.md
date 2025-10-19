@@ -81,7 +81,10 @@ remain a single time history accessible via `FEOptimizeDataVFM::MeasuredHistory(
 Virtual fields are stored as an array of histories obtained from
 `FEOptimizeDataVFM::VirtualFields()`.  Each entry exposes an `id` (optional) and
 its own `DisplacementHistory`, so multiple virtual fields can be supplied in the
-input file.
+input file.  Their corresponding deformation gradients are available through
+`FEOptimizeDataVFM::VirtualDeformationGradients()`, mirroring the measured
+`DeformationHistory`.  When exporting XPLT files, each field also emits a
+plot variable named `Virtual Defgrad <id>` for post-processing.
 
 ```xml
 <VirtualDisplacements>
