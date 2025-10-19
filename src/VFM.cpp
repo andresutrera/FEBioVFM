@@ -343,7 +343,7 @@ bool FEVFMTask::Init(const char* szfile)
 		return false;
 	}
 
-	if (!VFMValidation::ValidateMeasuredLoads(m_opt, validationError))
+	if (!VFMValidation::ValidateMeasuredLoads(*m_opt.GetFEModel(), m_opt, validationError))
 	{
 		feLogErrorEx(m_opt.GetFEModel(), validationError.c_str());
 		return false;

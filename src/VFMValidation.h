@@ -8,11 +8,14 @@
 #include <algorithm>
 #include <cmath>
 #include <unordered_set>
+#include <iostream>
 
 #include <FECore/FEModel.h>
 #include <FECore/FEMesh.h>
 #include <FECore/FEDomain.h>
 #include <FECore/FESolidDomain.h>
+#include <FECore/FESurface.h>
+#include <FECore/FEFacetSet.h>
 
 #include "FEData.h"
 
@@ -117,7 +120,7 @@ public:
 	 * @param errorMessage Populated when the validation fails.
 	 * @return true when each measured displacement time has corresponding loads for all surfaces.
 	 */
-	static inline bool ValidateMeasuredLoads(const FEOptimizeDataVFM& data, std::string& errorMessage)
+	static inline bool ValidateMeasuredLoads(FEModel& fem, const FEOptimizeDataVFM& data, std::string& errorMessage)
 	{
 		const auto& measuredHistory = data.MeasuredHistory();
 		const auto& loadHistory = data.MeasuredLoads();
@@ -160,6 +163,39 @@ public:
 		{
 			errorMessage = "Measured load history does not define any surfaces.";
 			return false;
+		}
+
+		// Validate that each referenced surface exists on the mesh.
+		FEMesh& mesh = fem.GetMesh();
+		for (const std::string& surfaceId : referenceSurfaces)
+		{
+			FESurface* surface = mesh.FindSurface(surfaceId.c_str());
+			int faceCount = 0;
+			int nodeCount = 0;
+
+			if (surface)
+			{
+				faceCount = surface->Elements();
+				nodeCount = surface->Nodes();
+			}
+			else
+			{
+				FEFacetSet* facetSet = mesh.FindFacetSet(surfaceId.c_str());
+				if (facetSet == nullptr)
+				{
+					errorMessage = "Measured load references surface \"" + surfaceId + "\" which does not exist in the FEBio mesh.";
+					return false;
+				}
+
+				faceCount = facetSet->Faces();
+				nodeCount = facetSet->GetNodeList().Size();
+			}
+
+			if (faceCount == 0 || nodeCount == 0)
+			{
+				errorMessage = "Surface \"" + surfaceId + "\" referenced by measured loads does not contain any elements or nodes.";
+				return false;
+			}
 		}
 
 		for (const auto& measStep : measuredHistory)

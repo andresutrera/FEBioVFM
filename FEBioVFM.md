@@ -113,6 +113,9 @@ conditions, implemented in `VFMValidation`:
    measured and virtual displacement containers contain exactly as many samples
    as the FE mesh has nodes.  If the counts differ, an informative message is
    generated.
+3. **Load surface availability**: `ValidateMeasuredLoads` verifies that each
+   measured load history shares the time stamps of the displacement history and
+   that every referenced surface exists on the FEBio mesh with accessible nodes.
 
 These validations are invoked in `FEVFMTask::Init`.  Any failure is logged via
 `feLogErrorEx`, aborting the task initialisation early.
