@@ -1,243 +1,332 @@
-# FEBio Virtual Fields Method Plug-in – Implementation Notes
+=============================================
+FEBio Virtual Fields Method Plug-in Overview
+=============================================
 
-This document summarises the current state of the FEBio VFM plug-in, the data
-structures that have been implemented, and the mathematical background that
-underpins each component.  It is intended as living documentation while the
-full Virtual Fields Method workflow is assembled.
+.. contents::
+   :depth: 2
+   :local:
 
----
+Purpose and Scope
+=================
 
-## 1. High-Level Flow
+The FEBio Virtual Fields Method (VFM) plug-in augments FEBio with an inverse
+identification workflow that fits constitutive parameters against full-field
+deformation measurements.  This document provides an implementation-oriented
+reference covering:
 
-At the moment the plug-in focuses on bootstrapping a Virtual Fields analysis by:
+* the data model exposed by the plug-in,
+* the numerical formulation of the residual and cost functions,
+* the decomposition of the virtual work equation implemented in the code base,
+* the optimisation strategy based on the ``dlevmar_bc_dif`` solver,
+* file export facilities and logging conventions for debugging.
 
-1. Parsing FEBio optimisation input files (`<febio_optimize>`), including scalar
-   model parameters and externally supplied displacement fields.
-2. Validating that the underlying FE model satisfies the assumptions of the
-   VFM scaffold (solid-only domains and consistent displacement data).
-3. Reconstructing the deformation gradient field \(\mathbf{F}\) at every Gauss
-   point using the measured nodal displacements, without mutating the FEBio
-   mesh state.
+Although stored as a ``.md`` file for compatibility with existing tooling, the
+syntax below follows reStructuredText conventions so that it can be rendered
+by Sphinx or other docutils-driven pipelines.
 
-The entry point is `FEVFMTask::Init`, which orchestrates the steps above after
-the optimisation data container (`FEOptimizeDataVFM`) has been populated.
+Architecture at a Glance
+========================
 
----
+The plug-in is structured around an FEBio task (``FEVFMTask``) that orchestrates
+the workflow and a data container (``FEOptimizeDataVFM``) that owns optimisation
+state.
 
-## 2. Input Parameters and Scalar Linking
+``FEVFMTask`` sequence
+----------------------
 
-Scalar optimisation variables are exposed via two helper classes:
+1. **Input parsing** via ``FEOptimizeDataVFM::Input``.
+2. **State initialisation** using ``FEOptimizeDataVFM::Init`` to register
+   parameters and cache their initial values.
+3. **Model validation** (solid domains only and consistent displacement/load
+   coverage).
+4. **Kinematic reconstruction** – builds deformation gradient histories for
+   both measured and virtual fields.
+5. **Stress history recovery** – computes Cauchy and first Piola-Kirchhoff
+   stresses for every Gauss point and time step.
+6. **External virtual work assembly** – integrates the measured tractions over
+   named surface sets.
+7. **Residual assembly** and **optimisation** via the Levenberg–Marquardt (LM)
+   solver with bound constraints.
+8. **Diagnostics and export** – logs the parameter evolution, residual cost,
+   and writes an ``.xplt`` snapshot containing all histories evaluated at the
+   converged parameters.
 
-- `FEInputParameterVFM` – abstract base describing optimisation variables,
-  storing metadata such as bounds, scaling, and initial guesses.
-- `FEModelParameterVFM` – concrete adapter that resolves a specified FEBio
-  model parameter, caches the pointer to its underlying double value, and keeps
-  the optimiser in sync with the FE model.
+The optimisation container exposes convenience methods that the task calls:
 
-`FEOptimizeDataVFM` owns the collection of input parameters and exposes
-high-level operations (`Input`, `Init`, `Solve`, `FESolve`).  Although the solve
-loop is still a placeholder, the infrastructure for registering parameters and
-running initialisation has been completed.
+* ``SetParameterVector`` and ``GetParameterVector`` for synchronising the FEBio
+  model with the optimiser,
+* ``RebuildStressHistories`` to recompute stresses whenever parameters change,
+* ``AssembleResidual`` to evaluate the virtual work imbalance,
+* ``MinimizeResidualWithLevmar`` to launch the LM solver using the residual as
+  a zero-target least-squares system.
 
----
+Data Model
+==========
 
-## 3. Displacement Containers
+Parameters
+----------
 
-Measured and virtual displacements are represented by the header-only
-`DisplacementContainer`.  Each entry is a `NodeDisplacement` struct containing
-a FEBio node identifier and a triple \((u_x, u_y, u_z)\).  The container offers:
+Scalar optimisation variables descend from ``FEInputParameterVFM``.  Each
+instance stores:
 
-- `Add` and `Clear` helpers,
-- constant-time lookups via `TryGet(nodeId, disp)`,
-- iteration over the insertion-ordered sample vector.
+* ``InitValue`` – the starting value written to the FEBio model,
+* ``MinValue`` and ``MaxValue`` – bounds fed to ``dlevmar_bc_dif``,
+* ``ScaleFactor`` – retained for future normalisation options,
+* a string ``name`` to resolve the underlying FEBio parameter.
 
-This structure is used both for measured data (coming from, for instance,
-Digital Image Correlation) and for the prescribed virtual fields required by
-the VFM.
+``FEModelParameterVFM`` is the predominant implementation, resolving a
+``FEParamDouble`` from the model and caching a mutable pointer to its raw value.
 
----
+Histories and Fields
+--------------------
 
-## 4. XML Parsing
+Displacement data and their derived quantities are organised into time-indexed
+histories.  The following containers are used extensively:
 
-`FEVFMInput` now recognises the following sections inside the optimisation file:
+* ``DisplacementHistory`` – a sequence of ``NodeDisplacement`` samples
+  (per-node vectors) keyed by time.
+* ``DeformationGradientHistory`` – holds ``DeformationGradientField`` instances,
+  each mapping element identifiers to per-Gauss-point gradients ``F``.
+* ``StressHistory`` – analogous container for Cauchy stress tensors ``σ``.
+* ``FirstPiolaHistory`` – per-Gauss-point first Piola–Kirchhoff tensors ``P``.
+* ``VirtualDisplacementCollection`` and
+  ``VirtualDeformationGradientCollection`` – indexed arrays of user-supplied
+  virtual fields, each with an optional identifier for logging/export.
+* ``VirtualExternalWorkHistory`` – stores the scalar virtual external work
+  sampled at the displacement time grid.
 
-```xml
-<Parameters>
-    <param name="...">init, min, max, scale</param>
-</Parameters>
-<MeasuredDisplacements>
-    <node id="...">ux, uy, uz</node>
-    ...
-</MeasuredDisplacements>
-<VirtualDisplacements>
-    <node id="...">ux, uy, uz</node>
-    ...
-</VirtualDisplacements>
-```
+Measured load histories are keyed by surface names that correspond to FEBio
+surface or facet sets.  During assembly, surfaces are resolved to node lists
+through the FEBio mesh API.
 
-Both `<node>` and legacy `<elem>` tags are accepted for backwards compatibility,
-but the data are always treated as nodal quantities.  Measured displacements
-remain a single time history accessible via `FEOptimizeDataVFM::MeasuredHistory()`.
-Virtual fields are stored as an array of histories obtained from
-`FEOptimizeDataVFM::VirtualFields()`.  Each entry exposes an `id` (optional) and
-its own `DisplacementHistory`, so multiple virtual fields can be supplied in the
-input file.  Their corresponding deformation gradients are available through
-`FEOptimizeDataVFM::VirtualDeformationGradients()`, mirroring the measured
-`DeformationHistory`.  When exporting XPLT files, each field also emits a
-plot variable named `Virtual Defgrad <id>` for post-processing.
+Mathematical Formulation
+========================
 
-```xml
-<VirtualDisplacements>
-    <virtualdisplacement id='phi_1'>
-        <time t="0.1"> ... </time>
-        <time t="0.2"> ... </time>
-    </virtualdisplacement>
-    <virtualdisplacement id='phi_2'>
-        ...
-    </virtualdisplacement>
-</VirtualDisplacements>
-```
+Virtual Fields Equation
+-----------------------
 
-Measured surface loads follow a similar pattern:
+For each virtual displacement field :math:`\hat{\mathbf{u}}^{(k)}` and time
+step :math:`t_j` the VFM imposes equilibrium of internal and external virtual
+work:
 
-```xml
-<MeasuredLoads>
-    <time t="0.0">
-        <surface id="left_grip">Fx, Fy, Fz</surface>
-        <surface id="right_grip">Fx, Fy, Fz</surface>
-    </time>
-</MeasuredLoads>
-```
+.. math::
 
-Loads are available through `FEOptimizeDataVFM::MeasuredLoads()[i].loads`.
-Individual surfaces can be queried by name with `SurfaceLoadSet::Find` or
-`::TryGet`, both of which return `vec3d` force vectors.
+   \mathcal{R}_{k,j} =
+     \int_{\Omega_0} \mathbf{P}(t_j) : \nabla_X \hat{\mathbf{u}}^{(k)} \, \mathrm{d}V
+     - \int_{\partial \Omega_0} \hat{\mathbf{u}}^{(k)} \cdot \bar{\mathbf{T}}(t_j)\, \mathrm{d}S
+     = 0.
 
-For debugging, a `LogDebugSummary()` method lists every parsed parameter and
-displacement sample using `feLogDebugEx`, so the information is only displayed
-when FEBio runs in debug mode (e.g. with the `-g` flag).
+Here :math:`\mathbf{P}` is the first Piola–Kirchhoff stress derived from the
+measured deformation gradient and current material parameters, and
+:math:`\bar{\mathbf{T}}` represents the applied traction vector reconstructed
+from measured surface loads.
 
----
+The discrete residual implemented in ``FEOptimizeDataVFM::AssembleResidual``
+evaluates
 
-## 5. Model Validation
+.. math::
 
-Prior to any heavy computation we check that the FEBio model satisfies two
-conditions, implemented in `VFMValidation`:
+   \mathcal{R}_{k,j}
+   = \sum_{e \in \mathcal{T}} \sum_{q=1}^{n_q}
+       w_{e,q} \left[ \mathbf{P}_{e,q}(t_j) : \mathbf{G}_{e,q}^{(k)} \right]
+     - \mathcal{W}_{k}^{\text{ext}}(t_j),
 
-1. **Solid-only domains**: `ValidateSolidDomains` walks every FE domain,
-   ensuring each is an instance of `FESolidDomain`.
-2. **Displacement coverage**: `ValidateDisplacementCounts` checks that both
-   measured and virtual displacement containers contain exactly as many samples
-   as the FE mesh has nodes.  If the counts differ, an informative message is
-   generated.
-3. **Load surface availability**: `ValidateMeasuredLoads` verifies that each
-   measured load history shares the time stamps of the displacement history and
-   that every referenced surface exists on the FEBio mesh with accessible nodes.
+where
 
-These validations are invoked in `FEVFMTask::Init`.  Any failure is logged via
-`feLogErrorEx`, aborting the task initialisation early.
+* :math:`w_{e,q}` are the precomputed element integration weights (`detJ0 *
+  gaussWeight`),
+* :math:`\mathbf{G}_{e,q}^{(k)} = \nabla_X \hat{\mathbf{u}}^{(k)}` is recovered
+  by removing the identity from the stored virtual deformation gradient
+  (``VirtualGradientFromDeformation``),
+* :math:`\mathcal{W}_{k}^{\text{ext}}(t_j)` is the virtual work of measured
+  tractions, calculated by distributing surface forces to the corresponding
+  nodes and projecting them through the virtual displacements.
 
----
+Cost Functional
+---------------
 
-## 6. Deformation Gradient Reconstruction
+The optimisation cost is the standard least-squares metric:
 
-The current focus of the implementation is to reconstruct the deformation
-gradient field from the measured displacements without altering FEBio’s mesh.
-We introduce two helpers:
+.. math::
 
-- `DeformationGradientField`: a container storing, for each element, the
-  Gauss-point tensors \(\mathbf{F}\) (as `mat3d` instances).
-- `VFMKinematics`: a utility namespace that computes \(\mathbf{F}\) by applying
-  the Total Lagrangian relation.
+   J(\boldsymbol{p}) = \frac{1}{2}\, \mathbf{r}(\boldsymbol{p})^\mathsf{T}
+   \mathbf{r}(\boldsymbol{p}),
 
-### 6.1 Mathematical Background
+with :math:`\mathbf{p}` denoting the stacked model parameters and
+:math:`\mathbf{r}` the residual vector obtained by concatenating
+:math:`\mathcal{R}_{k,j}` for all virtual fields and time steps.
 
-Let \(\mathbf{u}_i\) denote the displacement vector at node \(i\) and
-\(\nabla_X N_i\) the gradient of the element shape function with respect to the
-reference configuration.  The deformation gradient at a Gauss point is given by
+Implementation details:
 
-\[
-  \mathbf{F} = \mathbf{I} + \sum_{i=1}^{n_{\mathrm{eln}}}
-    \mathbf{u}_i \otimes \nabla_X N_i.
-\]
+* ``FEVFMTask::Run`` logs ``J`` both before and after the LM solve.
+* The residual is always reassembled with the current parameter set before
+  evaluating the cost.
 
-The gradient \(\nabla_X N_i\) is obtained by transforming the natural shape
-function derivatives \(\partial N_i / \partial (r, s, t)\) with the inverse of
-the reference Jacobian \(\mathbf{J}_0^{-1}\):
+Stress Reconstruction
+---------------------
 
-\[
-  \nabla_X N_i = \mathbf{J}_0^{-T}
-    \begin{bmatrix}
-      \partial N_i / \partial r \\
-      \partial N_i / \partial s \\
-      \partial N_i / \partial t
-    \end{bmatrix}.
-\]
+The stress pipeline resides in ``VFMStress`` and ``FEOptimizeDataVFM``:
 
-FEBio provides `FESolidDomain::invjac0` which computes \(\mathbf{J}_0^{-1}\) at
-the requested integration point.  In code we therefore:
+1. **Deformation Gradient** – ``VFMKinematics::ComputeDeformationGradients``
+   evaluates the total Lagrangian expression
 
-1. Call `invjac0` to fetch `Ji`.
-2. Loop over the element’s nodes; for each node \(i\), evaluate \(\nabla_X N_i\)
-   by multiplying `Ji` with the natural derivatives stored in
-   `el.Gr(n)`, `el.Gs(n)`, `el.Gt(n)`.
-3. Accumulate the contribution \(\mathbf{u}_i \otimes \nabla_X N_i\) into \(\mathbf{F}\).
-4. Add the identity matrix to recover the total deformation gradient.
+   .. math::
 
-When \(\mathbf{u}_i = \mathbf{0}\) for all nodes, the summation vanishes and
-\(\mathbf{F} = \mathbf{I}\), which is an important consistency check that is
-also verified in the debugging logs.
+      \mathbf{F}_{e,q} = \mathbf{I} + \sum_{a=1}^{n_{\text{node}}}
+        \mathbf{u}_a \otimes \nabla_X N_a(\xi_q),
 
-For diagnostic purposes `VFMKinematics` prints both the inverse Jacobian and
-the resulting deformation gradient (with five decimal places) when FEBio runs
-in debug mode:
+   extracting nodal displacements from the measured history.
 
-```
-Ji = [[0.50000 0.00000 0.00000] ...]
-F(elem 1, gp 0) = [[1.00000 0.00000 0.00000] ...], det(F) = 1.00000
-```
+2. **Cauchy Stress** – ``VFMStress::ComputeCauchyStress`` calls into FEBio to
+   update material point data and retrieves :math:`\boldsymbol{\sigma}`.
 
-### 6.2 Implementation Details
+3. **First Piola–Kirchhoff Stress** – computed analytically from the Cauchy
+   tensor and deformation gradient via
 
-- The nodal displacement lookup uses FEBio node IDs (`GetID()`), avoiding the
-  common pitfall of assuming node IDs are strictly consecutive.
-- Displacements are stored as `vec3d` instances, with one vector per element
-  node for each element processed.
-- If a displacement sample is missing or the determinant of \(\mathbf{F}\) is
-  non-positive, the computation aborts and an explanatory message is returned.
+   .. math::
 
-The computed field is stored in `FEOptimizeDataVFM::DeformationGradients()` so
-that subsequent VFM stages (stress evaluation, virtual work assembly, parameter
-updates) can reuse it without recomputing.
+      \mathbf{P} = J\, \boldsymbol{\sigma} \mathbf{F}^{-\mathsf{T}},
 
----
+   where :math:`J = \det{\mathbf{F}}`.
 
-## 7. Task Initialisation Summary
+4. **Virtual Deformation Gradients** – when virtual fields are supplied as
+   displacement histories, their gradients are computed using the same
+   kinematic routine as the measured data.  The tensor
+   :math:`\mathbf{G} = \mathbf{F}_\text{virtual} - \mathbf{I}` is used in the
+   internal virtual work calculation.
 
-The steps performed in `FEVFMTask::Init` are now:
+Optimisation Strategy
+=====================
 
-1. Parse optimisation parameters and displacement datasets (`FEVFMInput`).
-2. Initialise parameter adapters (`FEOptimizeDataVFM::Init`).
-3. Validate FE model topology and displacement coverage (`VFMValidation`).
-4. Reconstruct Gauss-point deformation gradients once (`VFMKinematics`).
+Residual Callback
+-----------------
 
-If all steps succeed the task is ready for the eventual Virtual Fields solve.
+``FEOptimizeDataVFM::MinimizeResidualWithLevmar`` wraps the residual assembly
+into a callback compatible with ``dlevmar_bc_dif``:
 
----
+* Parameters are copied from the LM-provided vector and applied to the FEBio
+  model without touching the load step state.
+* ``AssembleResidual(parameters, false, residual, error)`` evaluates the
+  residual directly (no temporary stress rebuild) because the current
+  parameter set is already synchronised.
+* The residual is written to the buffer supplied by LM.  Any failure in the
+  process (invalid bounds, stress reconstruction error, etc.) sets a flag that
+  aborts the optimisation and restores the original parameter vector and stress
+  histories.
 
-## 8. Next Steps
+Solver Configuration
+--------------------
 
-Future development will focus on:
+Key options passed to ``dlevmar_bc_dif``:
 
-- Incorporating the virtual displacement field into the VFM balance equations.
-- Evaluating stresses \(\boldsymbol{\sigma}\) at Gauss points using the
-  reconstructed \(\mathbf{F}\) and the material constitutive law.
-- Assembling the virtual work equation
-  \(\int_{\Omega} \boldsymbol{\sigma} : \delta \boldsymbol{\varepsilon}^* \, \mathrm{d}\Omega = \int_{\partial \Omega} \mathbf{t} \cdot \mathbf{v}^* \, \mathrm{d}\Gamma\)
-  (or its inverse counterpart) to update material parameters.
-- Completing the optimisation loop (`FEOptimizeDataVFM::Solve`) with appropriate
-  objective functions and gradient computations.
+* **Bounds** – extracted from ``FEInputParameterVFM::MinValue`` and
+  ``::MaxValue`` for every parameter; validation ensures ``min ≤ max``.
+* **Initial guess** – uses the current parameter vector as returned by the
+  FEBio model (after initialisation or after a prior solve).
+* **Iteration limit** – defaults to 100 when the caller supplies a non-positive
+  limit; the task currently passes zero to select this default.
+* **Options array** – ``[ LM_INIT_MU, 1e-12, 1e-12, 1e-12, LM_DIFF_DELTA ]``,
+  providing tight tolerance thresholds and the default finite-difference step
+  for the Jacobian approximation.
+* **Workspace** – allocated dynamically using ``LM_BC_DIF_WORKSZ`` for the
+  requested problem size.
 
-These notes will be updated as new components are implemented.
+The solver returns the number of LM iterations (non-negative on success), which
+is stored in ``FEOptimizeDataVFM::m_niter``.  The raw ``info`` vector is passed
+back to callers on demand for advanced diagnostics.
 
-Virtual external work values are stored in `FEOptimizeDataVFM::VirtualExternalWork()`, giving one scalar history per virtual field and time step.
+Logging and Diagnostics
+=======================
+
+* ``LogParameterValues`` prints current parameter values along with their
+  identifiers in debug mode and (after optimisation) in release mode.
+* ``FEVFMTask::Run`` reports the initial and final costs, the LM termination
+  metrics, and the final parameter vector.
+* ``LogStressDiagnostics`` is invoked only after successful optimisation,
+  guaranteeing that stresses correspond to the converged parameters.
+* External virtual work integrations provide detailed messages (surface names,
+  nodal forces, virtual displacements) when debug logging is enabled.
+
+Exporting Results
+=================
+
+``FEVFMTask::ExportState`` writes an FEBio ``.xplt`` file reflecting the
+current model state:
+
+* measured displacements and deformation gradients,
+* virtual displacement and deformation gradient histories,
+* recovered Cauchy and first Piola–Kirchhoff stresses,
+* virtual external work histories.
+
+During ``Init`` an initial snapshot is exported using the file specified on the
+command line (``-task="VFM" path/to/VFMData.feb``).  After optimisation,
+``Run`` reuses the same base path to overwrite the ``.xplt`` file with the
+stresses and histories that correspond to the final parameter values.
+
+Extending the Plug-in
+=====================
+
+Several extension points remain intentionally lightweight:
+
+* **Forward solver integration** – ``FEOptimizeDataVFM::FESolve`` is currently
+  a stub.  Hooking into FEBio's non-linear solver will enable iterative forward
+  updates between LM iterations, which is necessary for strongly non-linear
+  constitutive laws.
+* **Analytical Jacobians** – ``dlevmar_bc_dif`` uses finite differences.
+  Implementing ``dlevmar_bc_der`` with custom Jacobian code could improve
+  convergence in challenging problems.
+* **Regularisation** – ``MinimizeResidualWithLevmar`` focuses on pure least
+  squares.  Optional Tikhonov or Bayesian priors can be incorporated by
+  augmenting the residual vector with synthetic measurements.
+* **Adaptive tolerances** – the current tolerance triplet ``1e-12`` is chosen
+  to favour accuracy.  Problem-specific tuning hooks can be added to the
+  ``FEVFMTask`` options once user-facing configuration is defined.
+
+Testing and Validation Strategy
+===============================
+
+Unit-style validation is split across deterministic checks:
+
+* **Parser regression tests** – sample ``VFMData.feb`` files exercise the XML
+  reader and populate all histories.
+* **Kinematics sanity checks** – deformation gradients reconstructed from
+  identity deformation fields match ``F = I`` to machine precision.
+* **Residual invariance** – for a linear elastic benchmark with analytical
+  solution, the residual norms match reference values.
+* **Optimization smoke tests** – the LM wrapper is executed on synthetic
+  problems to verify bound enforcement and stress history rebuild logic.
+
+When integrating with FEBio, set ``-g`` for additional log output, and monitor
+the exported ``.xplt`` file in PostView to confirm that virtual fields and
+stresses evolve as expected.
+
+Appendix: Symbol Reference
+==========================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Symbol
+     - Meaning
+   * - :math:`\mathbf{u}`
+     - Measured displacement vector in the reference configuration.
+   * - :math:`\hat{\mathbf{u}}`
+     - Virtual displacement field supplied by the user.
+   * - :math:`\mathbf{F}`
+     - Deformation gradient, :math:`\nabla_X \mathbf{x}`.
+   * - :math:`\mathbf{P}`
+     - First Piola–Kirchhoff stress, :math:`J\, \boldsymbol{\sigma} \mathbf{F}^{-\mathsf{T}}`.
+   * - :math:`\boldsymbol{\sigma}`
+     - Cauchy stress tensor (true stress).
+   * - :math:`\mathbf{r}`
+     - Stacked virtual work residual vector.
+   * - :math:`J(\boldsymbol{p})`
+     - Least-squares cost function, :math:`\frac{1}{2} \mathbf{r}^\mathsf{T} \mathbf{r}`.
+   * - :math:`w_{e,q}`
+     - Quadrature weight (Gauss weight times reference Jacobian determinant).
+   * - :math:`\mathcal{W}^{\text{ext}}`
+     - External virtual work accumulated from measured tractions.
+
+This document should serve as the canonical reference while the plug-in evolves
+toward a full-fledged VFM identification tool integrated within FEBio.
