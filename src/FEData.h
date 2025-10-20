@@ -96,7 +96,7 @@ public:
 	/**
 	 * @brief Retrieve the human readable name of the parameter.
 	 */
-	string GetName() { return m_name; }
+	const std::string &GetName() { return m_name; }
 
 	/**
 	 * @brief Access the FEBio model associated with the parameter.
@@ -296,9 +296,10 @@ public:
 	FEInputParameterVFM *GetInputParameter(int n) { return m_Var[n]; }
 	const FEInputParameterVFM *GetInputParameter(int n) const { return m_Var[n]; }
 
+	std::vector<FEInputParameterVFM *> m_Var;
+
 protected:
 	FEModel *m_fem;												   ///< FEBio model associated with the optimization run.
-	std::vector<FEInputParameterVFM *> m_Var;					   ///< Registered optimization variables (non-owning).
 	DisplacementHistory m_measured;								   ///< Experimentally measured displacement history.
 	VirtualDisplacementCollection m_virtualFields;				   ///< Prescribed virtual displacement histories.
 	MeasuredLoadHistory m_measuredLoads;						   ///< Experimentally measured surface load history.
@@ -311,6 +312,9 @@ protected:
 public:
 	bool ComputeStress(const std::vector<double> &params, std::string &errorMessage);
 	std::vector<double> ComputeInternalWork(const std::vector<double> &params);
+	std::vector<double> ComputeResidual(const std::vector<double> &params);
+	std::vector<double> VirtualExternalWorkVector() const;
 
-private:
+	static void lm_model_internalwork(double *p, double *hx, int m, int n, void *adata);
+	std::vector<double> RunLM_VFM(std::vector<double> p, int itmax);
 };

@@ -384,3 +384,80 @@ std::vector<double> FEOptimizeDataVFM::ComputeInternalWork(const std::vector<dou
 	}
 	return internalWork;
 }
+
+std::vector<double> FEOptimizeDataVFM::ComputeResidual(const std::vector<double> &params)
+{
+	// 1) internal work at params
+	std::vector<double> iw = ComputeInternalWork(params);
+	if (iw.empty())
+		return {};
+
+	// 2) external work vector (assumed already flattened as fieldCount*timeCount)
+	// If you already have a vector getter, use it:
+	std::vector<double> ew = VirtualExternalWorkVector(); // flatten first
+	if (ew.size() != iw.size())
+		return {};
+
+	// 3) residual = W_ext - W_int
+	std::vector<double> r(iw.size());
+	for (size_t i = 0; i < r.size(); ++i)
+		r[i] = ew[i] - iw[i];
+	return r;
+}
+
+std::vector<double> FEOptimizeDataVFM::VirtualExternalWorkVector() const
+{
+	const auto &H = m_virtualExternalWork; // [field] -> work over time
+	if (H.empty())
+		return {};
+	const size_t fieldCount = H.size();
+	const size_t timeCount = H.front().work.size();
+
+	std::vector<double> ew(fieldCount * timeCount, 0.0);
+	for (size_t f = 0; f < fieldCount; ++f)
+	{
+		if (H[f].work.size() != timeCount)
+			return {};
+		for (size_t t = 0; t < timeCount; ++t)
+			ew[f * timeCount + t] = H[f].work[t];
+	}
+	return ew;
+}
+
+void FEOptimizeDataVFM::lm_model_internalwork(double *p, double *hx, int m, int n, void *adata)
+{
+	auto *opt = static_cast<FEOptimizeDataVFM *>(adata);
+	std::vector<double> params(p, p + m);
+	std::vector<double> iw = opt->ComputeInternalWork(params); // size n
+	for (int i = 0; i < n; ++i)
+		hx[i] = iw[(size_t)i];
+}
+
+std::vector<double> FEOptimizeDataVFM::RunLM_VFM(std::vector<double> p,
+												 int itmax = 100)
+{
+	// data vector x = external virtual work flattened
+	std::vector<double> x = VirtualExternalWorkVector();
+	if (x.empty())
+		return p;
+
+	const int m = (int)p.size();
+	const int n = (int)x.size();
+
+	double opts[LM_OPTS_SZ];
+	opts[0] = 1e-3;	 // tau
+	opts[1] = 1e-12; // eps1
+	opts[2] = 1e-12; // eps2
+	opts[3] = 1e-15; // eps3
+	opts[4] = -1.0;	 // delta (<0 → use internal)
+	double info[LM_INFO_SZ];
+	dlevmar_dif(&lm_model_internalwork,
+				p.data(), x.data(),
+				m, n,
+				itmax,
+				/*opts*/ opts, /*info*/ info,
+				/*work*/ nullptr, /*covar*/ nullptr,
+				/*adata*/ this);
+
+	return p; // optimized params in-place
+}

@@ -57,6 +57,7 @@ private:
     bool ExportState(const char *szfile);
 
     void LogVector(const char *tag, const std::vector<double> &v);
+    void LogParameterTable(std::vector<FEInputParameterVFM *> &vars, const char *title, int precision);
 
     FEOptimizeDataVFM m_opt; ///< Optimization data wrapper responsible for parsing input.
     std::string m_inputFile; ///< Original VFM data path used to derive export filenames.

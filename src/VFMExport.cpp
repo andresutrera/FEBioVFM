@@ -298,7 +298,7 @@ struct VFMExportSession::Impl
 		}
 
 		VFMPlotMeasuredDisplacement *eval = new VFMPlotMeasuredDisplacement(&fem);
-		if (!plot.AddVariable(eval, "Measured Displacement Eval"))
+		if (!plot.AddVariable(eval, "displacement"))
 		{
 			error = "Failed to register displacement field.";
 			delete eval;
@@ -428,7 +428,7 @@ struct VFMExportSession::Impl
 		}
 
 		VFMPlotStress *plotVar = new VFMPlotStress(&fem);
-		if (!plot.AddVariable(plotVar, "Measured Stress"))
+		if (!plot.AddVariable(plotVar, "Estimated Stress"))
 		{
 			error = "Failed to register stress field.";
 			delete plotVar;
@@ -450,7 +450,7 @@ struct VFMExportSession::Impl
 		}
 
 		VFMPlotFirstPiolaStress *plotVar = new VFMPlotFirstPiolaStress(&fem);
-		if (!plot.AddVariable(plotVar, "Measured First Piola Stress"))
+		if (!plot.AddVariable(plotVar, "Estimated First Piola Stress"))
 		{
 			error = "Failed to register first Piola stress field.";
 			delete plotVar;

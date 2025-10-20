@@ -9,6 +9,7 @@
 #include <FECore/FEModel.h>
 #include <FECore/log.h>
 #include <string>
+#include <cstring>
 #include <vector>
 #include <numeric>
 #include "FEData.h"
@@ -461,6 +462,8 @@ bool FEVFMTask::Init(const char *szfile)
 	if (!ComputeExternalVirtualWork())
 		return false;
 	LogDiagnostics();
+	feLog("\n");
+	LogParameterTable(m_opt.m_Var, "INITIAL PARAMETERS", 10);
 
 	feLog("\n");
 	feLog("\n");
@@ -823,9 +826,9 @@ bool FEVFMTask::Run()
 	std::vector<double> p0;
 	m_opt.GetParameterVector(p0); // adjust member name if different
 
-	// 2) compute internal-work "residual" at p0
-	std::vector<double> r = m_opt.ComputeInternalWork(p0); // side-effecting; no restore
-	LogVector("Residual (internal work)", r);
+	std::vector<double> p = m_opt.RunLM_VFM(p0, 100);
+
+	LogParameterTable(m_opt.m_Var, "FINAL PARAMETERS", 10);
 
 	if (!ExportState(m_inputFile.empty() ? nullptr : m_inputFile.c_str()))
 	{
@@ -833,4 +836,61 @@ bool FEVFMTask::Run()
 	}
 
 	return true;
+}
+
+void FEVFMTask::LogParameterTable(std::vector<FEInputParameterVFM *> &vars, const char *title, int precision)
+{
+	// column widths
+	size_t wname = 4; // "Name"
+	for (auto *v : vars)
+		if (v)
+			wname = std::max(wname, v->GetName().size());
+	const int Wval = 20;
+
+	// header box width = inner table width: name + 3*value cols + 3 separators
+	const int inner = static_cast<int>(wname) + 3 * Wval + 3;
+
+	auto line = [&](char c = '-')
+	{
+		feLog("+%.*s+%.*s+%.*s+%.*s+\n",
+			  (int)wname, std::string(wname, c).c_str(),
+			  Wval, std::string(Wval, c).c_str(),
+			  Wval, std::string(Wval, c).c_str(),
+			  Wval, std::string(Wval, c).c_str());
+	};
+
+	auto center = [&](const char *txt)
+	{
+		const int len = (int)std::strlen(txt);
+		const int padL = std::max(0, (inner - len) / 2);
+		const int padR = std::max(0, inner - len - padL);
+		feLog(" %.*s%s%.*s \n", padL, std::string(padL, '=').c_str(), txt, padR, std::string(padR, '=').c_str());
+	};
+
+	// header
+	center(title);
+
+	// table
+	line('-');
+	feLog("|%-*s|%*s|%*s|%*s|\n",
+		  (int)wname, "Name",
+		  Wval, "Value",
+		  Wval, "Min",
+		  Wval, "Max");
+	line('-');
+
+	for (auto *v : vars)
+	{
+		const std::string name = v ? v->GetName() : std::string("<null>");
+		const double val = v ? v->GetValue() : 0.0;
+		const double vmin = v ? v->MinValue() : 0.0;
+		const double vmax = v ? v->MaxValue() : 0.0;
+
+		feLog("|%-*s|%*.*g|%*.*g|%*.*g|\n",
+			  (int)wname, name.c_str(),
+			  Wval, precision, val,
+			  Wval, precision, vmin,
+			  Wval, precision, vmax);
+	}
+	line('-');
 }
