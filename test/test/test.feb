@@ -12,9 +12,9 @@
 	<Material>
 		<material id="1" name="Material1" type="incomp neo-Hookean">
 			<density>1</density>
-			<k>10000</k>
+			<k>10</k>
 			<pressure_model>default</pressure_model>
-			<G>0.000001</G>
+			<G>0.01</G>
 		</material>
 	</Material>
 	<Mesh>
