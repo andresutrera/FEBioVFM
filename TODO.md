@@ -16,6 +16,27 @@
 - **Task layer**: `FEVFMTask` becomes a thin orchestrator that wires parser → builder → services → solver → export, delegating subtasks to the layers above.
 - **Diagnostics**: `VFMDiagnostics` owns all logging helpers currently embedded in `src/VFM.cpp`.
 
+## Workflow Orchestration Blueprint
+1. `FEVFMTask::Init` creates an `VFMInputParser`, feeds the configuration file, and receives an immutable `VFMConfig`.
+2. `FEVFMTask` hands the config to `VFMStateBuilder`, which produces a `VFMState` seeded with parameters, measured/virtual data, and empty result slots.
+3. During setup, the task drives each service in sequence, passing references to the shared `VFMState`:
+   - `KinematicsSolver` consumes measured displacement snapshots from the state and writes deformation gradients back into it.
+   - `StressEvaluator` reads deformation history from the state and fills the stress timelines.
+   - `ExternalWorkAssembler` operates on virtual displacements plus measured loads to populate the virtual work buffers.
+   - `ResidualAssembler` binds the current state and exposes functors required by `VFMSolver`.
+4. `FEVFMTask::Run` requests a `ParameterView` from the state, forwards it to `VFMSolver`, and applies the optimized values through the view once the solve finishes.
+5. After optimization, `FEVFMTask` calls `VFMExportSession`, supplying read-only references to the data stored in `VFMState`, and `VFMDiagnostics` to log high-level summaries.
+6. All cross-service communication goes through the state or explicit return values—services never invoke one another directly, keeping dependencies acyclic.
+
+## Target Class Dependencies
+- `FEVFMTask` depends on `VFMInputParser`, `VFMStateBuilder`, `VFMState`, `KinematicsSolver`, `StressEvaluator`, `ExternalWorkAssembler`, `ResidualAssembler`, `VFMSolver`, `VFMExportSession`, and `VFMDiagnostics`.
+- `VFMStateBuilder` depends on `VFMConfig`, domain DTOs, and constructs `VFMState`; it does not see solver/services.
+- `KinematicsSolver`, `StressEvaluator`, and `ExternalWorkAssembler` depend only on `VFMState` read/write views plus FEBio mesh/material interfaces; they never reference the task or solver.
+- `ResidualAssembler` depends on `VFMState` views and exposes callbacks used by `VFMSolver`; no FEBio calls live inside the solver.
+- `VFMSolver` depends on `ParameterSet`/`ResidualAssembler` abstractions and the levmar backend; it returns updated parameter values without touching the state directly.
+- `VFMDiagnostics` accepts const references to `VFMState` and optional solver reports, keeping logging side effects isolated.
+- `VFMExportSession` consumes the finalized `VFMState` but does not mutate it; the session remains decoupled from solver logic.
+
 ## Work Breakdown
 
 ### 1. Restructure Project Layout
@@ -68,4 +89,3 @@
 - [ ] Remove legacy fields/methods rendered obsolete after the split (e.g., `FEOptimizeDataVFM::Solve` placeholder).
 - [ ] Audit includes for minimal exposure, forward declare FEBio types where possible.
 - [ ] Run clang-format / clang-tidy once the reorganization is complete to standardize style (keep tooling config in repo).
-
