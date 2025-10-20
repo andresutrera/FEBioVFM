@@ -41,8 +41,6 @@
 	<MeshDomains>
 		<SolidDomain name="Part1" mat="Material1"/>
 	</MeshDomains>
-	<Step>
-	</Step>
 	<Output>
 		<plotfile type="febio">
 			<var type="displacement"/>
