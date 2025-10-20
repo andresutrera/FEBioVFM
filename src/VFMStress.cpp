@@ -20,23 +20,24 @@
 #include <FEBioMech/FEUncoupledMaterial.h>
 #include <FEBioMech/FEElasticMaterialPoint.h>
 
-bool VFMStress::ComputeCauchyStress(FEModel& fem,
-	const DeformationGradientField& defField,
-	StressField& outField,
-	std::string& errorMessage)
+bool VFMStress::ComputeCauchyStress(FEModel &fem,
+									const DeformationGradientField &defField,
+									StressField &outField,
+									std::string &errorMessage)
 {
 	outField.Clear();
 
-	FEMesh& mesh = fem.GetMesh();
+	FEMesh &mesh = fem.GetMesh();
 
 	const int domainCount = mesh.Domains();
 	for (int domIdx = 0; domIdx < domainCount; ++domIdx)
 	{
-		FEDomain& domain = mesh.Domain(domIdx);
-		auto* solidDomain = dynamic_cast<FESolidDomain*>(&domain);
-		if (solidDomain == nullptr) continue;
+		FEDomain &domain = mesh.Domain(domIdx);
+		auto *solidDomain = dynamic_cast<FESolidDomain *>(&domain);
+		if (solidDomain == nullptr)
+			continue;
 
-		auto* solidMaterial = dynamic_cast<FESolidMaterial*>(solidDomain->GetMaterial());
+		auto *solidMaterial = dynamic_cast<FESolidMaterial *>(solidDomain->GetMaterial());
 		if (solidMaterial == nullptr)
 		{
 			errorMessage = "Encountered a solid domain without a compatible solid material instance.";
@@ -46,10 +47,10 @@ bool VFMStress::ComputeCauchyStress(FEModel& fem,
 		const int elemCount = solidDomain->Elements();
 		for (int elemIdx = 0; elemIdx < elemCount; ++elemIdx)
 		{
-			FESolidElement& el = static_cast<FESolidElement&>(solidDomain->ElementRef(elemIdx));
+			FESolidElement &el = static_cast<FESolidElement &>(solidDomain->ElementRef(elemIdx));
 			const int elemId = el.GetID();
 
-			const GaussPointDeformation* gpDef = defField.Find(elemId);
+			const GaussPointDeformation *gpDef = defField.Find(elemId);
 			if (gpDef == nullptr)
 			{
 				errorMessage = "Missing deformation gradient data for element " + std::to_string(elemId) + ".";
@@ -69,9 +70,9 @@ bool VFMStress::ComputeCauchyStress(FEModel& fem,
 
 			for (int n = 0; n < gaussPointCount; ++n)
 			{
-				const mat3d& F = gpDef->gradients[n];
+				const mat3d &F = gpDef->gradients[n];
 
-				FEMaterialPoint* originalPoint = el.GetMaterialPoint(n);
+				FEMaterialPoint *originalPoint = el.GetMaterialPoint(n);
 				if (originalPoint == nullptr)
 				{
 					errorMessage = "Element " + std::to_string(elemId) + " lacks material point data at integration point " + std::to_string(n) + ".";
@@ -88,7 +89,7 @@ bool VFMStress::ComputeCauchyStress(FEModel& fem,
 				mpClone->m_elem = &el;
 				mpClone->m_index = n;
 
-				FEElasticMaterialPoint* elasticPoint = mpClone->ExtractData<FEElasticMaterialPoint>();
+				FEElasticMaterialPoint *elasticPoint = mpClone->ExtractData<FEElasticMaterialPoint>();
 				if (elasticPoint == nullptr)
 				{
 					errorMessage = "Material in element " + std::to_string(elemId) + " does not expose elastic material point data.";
@@ -103,7 +104,7 @@ bool VFMStress::ComputeCauchyStress(FEModel& fem,
 				elasticPoint->m_Wt = elasticPoint->m_Wp = 0.0;
 
 				mat3ds sigma;
-				if (auto* uncoupled = dynamic_cast<FEUncoupledMaterial*>(solidMaterial))
+				if (auto *uncoupled = dynamic_cast<FEUncoupledMaterial *>(solidMaterial))
 				{
 					mat3ds dev = uncoupled->DevStress(*mpClone);
 					const double p = dev.zz();
@@ -123,18 +124,18 @@ bool VFMStress::ComputeCauchyStress(FEModel& fem,
 	return true;
 }
 
-bool VFMStress::ComputeFirstPiolaStress(const DeformationGradientField& defField,
-	const StressField& cauchyField,
-	FirstPiolaField& outField,
-	std::string& errorMessage)
+bool VFMStress::ComputeFirstPiolaStress(const DeformationGradientField &defField,
+										const StressField &cauchyField,
+										FirstPiolaField &outField,
+										std::string &errorMessage)
 {
 	outField.Clear();
 
 	constexpr double DET_TOL = 1e-12;
 
-	for (const GaussPointStress& gpStress : cauchyField.Data())
+	for (const GaussPointStress &gpStress : cauchyField.Data())
 	{
-		const GaussPointDeformation* gpDef = defField.Find(gpStress.elementId);
+		const GaussPointDeformation *gpDef = defField.Find(gpStress.elementId);
 		if (gpDef == nullptr)
 		{
 			errorMessage = "Missing deformation gradient data for element " + std::to_string(gpStress.elementId) + ".";
@@ -153,16 +154,16 @@ bool VFMStress::ComputeFirstPiolaStress(const DeformationGradientField& defField
 
 		for (size_t n = 0; n < gpStress.stresses.size(); ++n)
 		{
-			const mat3d& F = gpDef->gradients[n];
+			const mat3d &F = gpDef->gradients[n];
 			const double J = F.det();
 			if (std::fabs(J) <= DET_TOL)
 			{
 				errorMessage = "Deformation gradient for element " + std::to_string(gpStress.elementId) +
-					" at Gauss point " + std::to_string(n) + " is singular.";
+							   " at Gauss point " + std::to_string(n) + " is singular.";
 				return false;
 			}
 
-			const mat3ds& sigma = gpStress.stresses[n];
+			const mat3ds &sigma = gpStress.stresses[n];
 			const mat3d sigmaMat(
 				sigma.xx(), sigma.xy(), sigma.xz(),
 				sigma.xy(), sigma.yy(), sigma.yz(),
