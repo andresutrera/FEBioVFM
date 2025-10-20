@@ -32,7 +32,12 @@ public:
 	 * @note Lookup of concrete model data is deferred to derived classes because
 	 * some parameters are not available until after the input file has been parsed.
 	 */
-	FEInputParameterVFM(FEModel* fem) : m_fem(fem) { m_min = -1e99; m_max = 1e99; m_scale = 1.0; }
+	FEInputParameterVFM(FEModel *fem) : m_fem(fem)
+	{
+		m_min = -1e99;
+		m_max = 1e99;
+		m_scale = 1.0;
+	}
 	virtual ~FEInputParameterVFM() {}
 
 	/**
@@ -62,17 +67,17 @@ public:
 	/**
 	 * @brief Get or set the initial value used to seed the optimization run.
 	 */
-	double& InitValue() { return m_initVal; }
+	double &InitValue() { return m_initVal; }
 
 	/**
 	 * @brief Get or set the lower admissible bound for this variable.
 	 */
-	double& MinValue() { return m_min; }
+	double &MinValue() { return m_min; }
 
 	/**
 	 * @brief Get or set the upper admissible bound for this variable.
 	 */
-	double& MaxValue() { return m_max; }
+	double &MaxValue() { return m_max; }
 
 	/**
 	 * @brief Get or set the scaling factor that normalizes sensitivity during search.
@@ -80,13 +85,13 @@ public:
 	 * @note Scaling is currently only stored; no automatic normalization is applied
 	 * elsewhere in the code base yet.
 	 */
-	double& ScaleFactor() { return m_scale; }
+	double &ScaleFactor() { return m_scale; }
 
 	/**
 	 * @brief Set the human readable name of the parameter.
 	 * @param name Identifier used to resolve the underlying FEBio parameter.
 	 */
-	void SetName(const string& name) { m_name = name; }
+	void SetName(const string &name) { m_name = name; }
 
 	/**
 	 * @brief Retrieve the human readable name of the parameter.
@@ -96,14 +101,14 @@ public:
 	/**
 	 * @brief Access the FEBio model associated with the parameter.
 	 */
-	FEModel* GetFEModel() { return m_fem; }
+	FEModel *GetFEModel() { return m_fem; }
 
 private:
-	string		m_name;			//!< name of input parameter
-	double		m_initVal;		//!< initial value
-	double		m_min, m_max;	//!< min, max values for parameter
-	double		m_scale;		//!< scale factor
-	FEModel*	m_fem;			//!< pointer to model data
+	string m_name;		 //!< name of input parameter
+	double m_initVal;	 //!< initial value
+	double m_min, m_max; //!< min, max values for parameter
+	double m_scale;		 //!< scale factor
+	FEModel *m_fem;		 //!< pointer to model data
 };
 /**
  * @brief Adapter that exposes a FEBio model parameter as an optimization variable.
@@ -123,7 +128,7 @@ public:
 	 * @brief Construct an adapter bound to the supplied FEBio model.
 	 * @param fem Owning FEBio model.
 	 */
-	FEModelParameterVFM(FEModel* fem);
+	FEModelParameterVFM(FEModel *fem);
 
 	/**
 	 * @brief Locate the targeted model parameter and cache a pointer to it.
@@ -153,11 +158,10 @@ public:
 	bool SetValue(double newValue);
 
 private:
-	string	m_name;		//!< name of the FEModel parameter this adapter targets
-	double*	m_pd;		//!< pointer to the raw model data once resolved in Init
-	double	m_val;		//!< cached value used when the model data pointer is absent
+	string m_name; //!< name of the FEModel parameter this adapter targets
+	double *m_pd;  //!< pointer to the raw model data once resolved in Init
+	double m_val;  //!< cached value used when the model data pointer is absent
 };
-
 
 /**
  * @brief Container for optimization state managed by the VFM plugin.
@@ -175,20 +179,19 @@ public:
 		std::vector<double> work;
 	};
 
-
 public:
 	/**
 	 * @brief Construct the optimization state wrapper.
 	 * @param fem FEBio model that will be solved during optimization.
 	 */
-	FEOptimizeDataVFM(FEModel* fem);
+	FEOptimizeDataVFM(FEModel *fem);
 	~FEOptimizeDataVFM(void);
 
 	/**
 	 * @brief Parse the VFM-specific input file.
 	 * @param sz Path to the XML file that describes optimization parameters.
 	 */
-	bool Input(const char* sz);
+	bool Input(const char *sz);
 
 	/**
 	 * @brief Initialize the optimization problem before the first solve.
@@ -211,31 +214,30 @@ public:
 	/**
 	 * @brief Access the FEModel instance used during optimization.
 	 */
-	FEModel* GetFEModel() { return m_fem; }
+	FEModel *GetFEModel() { return m_fem; }
 
 	/**
 	 * @brief Access the full measured displacement history.
 	 */
-	DisplacementHistory& MeasuredHistory() { return m_measured; }
-	const DisplacementHistory& MeasuredHistory() const { return m_measured; }
+	DisplacementHistory &MeasuredHistory() { return m_measured; }
+	const DisplacementHistory &MeasuredHistory() const { return m_measured; }
 
 	/**
 	 * @brief Access the full measured surface load history.
 	 */
-	MeasuredLoadHistory& MeasuredLoads() { return m_measuredLoads; }
-	const MeasuredLoadHistory& MeasuredLoads() const { return m_measuredLoads; }
-
+	MeasuredLoadHistory &MeasuredLoads() { return m_measuredLoads; }
+	const MeasuredLoadHistory &MeasuredLoads() const { return m_measuredLoads; }
 
 	/**
 	 * @brief Access all configured virtual displacement fields.
 	 */
-	VirtualDisplacementCollection& VirtualFields() { return m_virtualFields; }
-	const VirtualDisplacementCollection& VirtualFields() const { return m_virtualFields; }
+	VirtualDisplacementCollection &VirtualFields() { return m_virtualFields; }
+	const VirtualDisplacementCollection &VirtualFields() const { return m_virtualFields; }
 
 	/**
 	 * @brief Append a new virtual displacement field identified by @p fieldId.
 	 */
-	VirtualDisplacementCollection::Field& AddVirtualField(const std::string& fieldId) { return m_virtualFields.Add(fieldId); }
+	VirtualDisplacementCollection::Field &AddVirtualField(const std::string &fieldId) { return m_virtualFields.Add(fieldId); }
 
 	/**
 	 * @brief Remove all stored virtual displacement fields.
@@ -245,62 +247,33 @@ public:
 	/**
 	 * @brief Access all configured virtual deformation gradient histories.
 	 */
-	VirtualDeformationGradientCollection& VirtualDeformationGradients() { return m_virtualDefGradients; }
-	const VirtualDeformationGradientCollection& VirtualDeformationGradients() const { return m_virtualDefGradients; }
+	VirtualDeformationGradientCollection &VirtualDeformationGradients() { return m_virtualDefGradients; }
+	const VirtualDeformationGradientCollection &VirtualDeformationGradients() const { return m_virtualDefGradients; }
 
 	/**
 	 * @brief Append a new virtual deformation gradient field identified by @p fieldId.
 	 */
-	VirtualDeformationGradientCollection::Field& AddVirtualDeformationField(const std::string& fieldId) { return m_virtualDefGradients.Add(fieldId); }
+	VirtualDeformationGradientCollection::Field &AddVirtualDeformationField(const std::string &fieldId) { return m_virtualDefGradients.Add(fieldId); }
 
 	/**
 	 * @brief Remove all stored virtual deformation gradient fields.
 	 */
 	void ClearVirtualDeformationFields() { m_virtualDefGradients.Clear(); }
 
+	DeformationGradientHistory &DeformationHistory() { return m_defGradHistory; }
+	const DeformationGradientHistory &DeformationHistory() const { return m_defGradHistory; }
 
-	DeformationGradientHistory& DeformationHistory() { return m_defGradHistory; }
-	const DeformationGradientHistory& DeformationHistory() const { return m_defGradHistory; }
+	StressHistory &StressTimeline() { return m_stressHistory; }
+	const StressHistory &StressTimeline() const { return m_stressHistory; }
 
-	StressHistory& StressTimeline() { return m_stressHistory; }
-	const StressHistory& StressTimeline() const { return m_stressHistory; }
+	FirstPiolaHistory &FirstPiolaTimeline() { return m_firstPiolaHistory; }
+	const FirstPiolaHistory &FirstPiolaTimeline() const { return m_firstPiolaHistory; }
 
-	FirstPiolaHistory& FirstPiolaTimeline() { return m_firstPiolaHistory; }
-	const FirstPiolaHistory& FirstPiolaTimeline() const { return m_firstPiolaHistory; }
+	std::vector<VirtualExternalWorkHistory> &VirtualExternalWork() { return m_virtualExternalWork; }
+	const std::vector<VirtualExternalWorkHistory> &VirtualExternalWork() const { return m_virtualExternalWork; }
 
-	std::vector<VirtualExternalWorkHistory>& VirtualExternalWork() { return m_virtualExternalWork; }
-	const std::vector<VirtualExternalWorkHistory>& VirtualExternalWork() const { return m_virtualExternalWork; }
-
-	bool SetParameterVector(const std::vector<double>& values, std::string& errorMessage);
-	void GetParameterVector(std::vector<double>& values) const;
-	bool ResetParametersToInitial(std::string& errorMessage);
-	const std::vector<double>& InitialParameterVector() const { return m_initialParameters; }
-
-	bool RebuildStressHistories(std::string& errorMessage);
-	bool RebuildStressHistories(const std::vector<double>& parameterValues, bool restoreOriginalValues, std::string& errorMessage);
-
-	bool AssembleResidual(std::vector<double>& residual, std::string& errorMessage);
-	bool AssembleResidual(const std::vector<double>& parameterValues, bool restoreOriginalValues, std::vector<double>& residual, std::string& errorMessage);
-
-	/**
-	 * @brief Minimize the residual vector using the Levenberg-Marquardt solver with bound constraints.
-	 *
-	 * @param maxIterations Maximum number of LM iterations (values <= 0 select a reasonable default).
-	 * @param infoOut Optional pointer that receives the raw LM termination metrics (LM_INFO_SZ entries).
-	 * @param errorMessage Populated when the optimization fails.
-	 * @return true when the solver converged and the model parameters reflect the final solution.
-	 */
-	bool MinimizeResidualWithLevmar(int maxIterations, std::vector<double>* infoOut, std::string& errorMessage);
-
-	/**
-	 * @brief Solve the forward FE problem with a proposed parameter vector.
-	 * @param a Ordered list of parameter values sourced from the optimizer.
-	 *
-	 * @return Always returns false until the solver hook is implemented.
-	 * @note This is currently a stub that will eventually call into FEBio's
-	 * task infrastructure once the inversion loop is assembled.
-	 */
-	bool FESolve(const std::vector<double>& a);
+	bool SetParameterVector(const std::vector<double> &values, std::string &errorMessage);
+	void GetParameterVector(std::vector<double> &values) const;
 
 public:
 	/**
@@ -315,38 +288,29 @@ public:
 	 * @note Parameters are stored as raw pointers to mirror the original plugin.
 	 * The container does not delete them, so lifetime must be managed externally.
 	 */
-	void AddInputParameter(FEInputParameterVFM* var) { m_Var.push_back(var); }
+	void AddInputParameter(FEInputParameterVFM *var) { m_Var.push_back(var); }
 
 	/**
 	 * @brief Retrieve a parameter by position.
 	 */
-	FEInputParameterVFM* GetInputParameter(int n) { return m_Var[n]; }
-	const FEInputParameterVFM* GetInputParameter(int n) const { return m_Var[n]; }
-
-public:
-
-
-
-public:
-	int	m_niter;	///< Number of minor iterations (i.e. FE solves) executed so far.
-
+	FEInputParameterVFM *GetInputParameter(int n) { return m_Var[n]; }
+	const FEInputParameterVFM *GetInputParameter(int n) const { return m_Var[n]; }
 
 protected:
-	FEModel*	m_fem;   ///< FEBio model associated with the optimization run.
-	std::vector<FEInputParameterVFM*>	    m_Var; ///< Registered optimization variables (non-owning).
-	DisplacementHistory m_measured; ///< Experimentally measured displacement history.
-	VirtualDisplacementCollection m_virtualFields; ///< Prescribed virtual displacement histories.
-	MeasuredLoadHistory m_measuredLoads; ///< Experimentally measured surface load history.
-	VirtualDeformationGradientCollection m_virtualDefGradients; ///< Deformation gradients for virtual displacement fields.
+	FEModel *m_fem;												   ///< FEBio model associated with the optimization run.
+	std::vector<FEInputParameterVFM *> m_Var;					   ///< Registered optimization variables (non-owning).
+	DisplacementHistory m_measured;								   ///< Experimentally measured displacement history.
+	VirtualDisplacementCollection m_virtualFields;				   ///< Prescribed virtual displacement histories.
+	MeasuredLoadHistory m_measuredLoads;						   ///< Experimentally measured surface load history.
+	VirtualDeformationGradientCollection m_virtualDefGradients;	   ///< Deformation gradients for virtual displacement fields.
 	std::vector<VirtualExternalWorkHistory> m_virtualExternalWork; ///< External virtual work per field/time.
-	DeformationGradientHistory m_defGradHistory; ///< Deformation gradient history.
-	StressHistory m_stressHistory; ///< Cauchy stress history reconstructed from deformation gradients.
-	FirstPiolaHistory m_firstPiolaHistory; ///< First Piola-Kirchhoff stress history.
+	DeformationGradientHistory m_defGradHistory;				   ///< Deformation gradient history.
+	StressHistory m_stressHistory;								   ///< Cauchy stress history reconstructed from deformation gradients.
+	FirstPiolaHistory m_firstPiolaHistory;						   ///< First Piola-Kirchhoff stress history.
 
 private:
-	bool RebuildStressHistoriesInternal(std::string& errorMessage);
-	bool AssembleResidualInternal(std::vector<double>& residual, std::string& errorMessage);
+	bool ComputeStress(std::string &errorMessage);
+	bool ComputeInternalWork(std::vector<double> &residual);
 
 private:
-	std::vector<double> m_initialParameters; ///< Parameter vector captured after initialization.
 };

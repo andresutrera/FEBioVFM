@@ -34,14 +34,14 @@ public:
 	 * @param errorMessage Populated with a description when the check fails.
 	 * @return true if all domains are solid.
 	 */
-	static inline bool ValidateSolidDomains(FEModel& fem, std::string& errorMessage)
+	static inline bool ValidateSolidDomains(FEModel &fem, std::string &errorMessage)
 	{
-		FEMesh& mesh = fem.GetMesh();
+		FEMesh &mesh = fem.GetMesh();
 		const int domainCount = mesh.Domains();
 		for (int i = 0; i < domainCount; ++i)
 		{
-			FEDomain& dom = mesh.Domain(i);
-			if (dynamic_cast<FESolidDomain*>(&dom) == nullptr)
+			FEDomain &dom = mesh.Domain(i);
+			if (dynamic_cast<FESolidDomain *>(&dom) == nullptr)
 			{
 				errorMessage = "The Virtual Fields Method only supports solid domains; found non-solid domain \"" + dom.GetName() + "\".";
 				return false;
@@ -57,11 +57,11 @@ public:
 	 * @param errorMessage Populated with a description when the check fails.
 	 * @return true when both displacement sets contain one entry per mesh node.
 	 */
-	static inline bool ValidateDisplacementCounts(FEModel& fem, const FEOptimizeDataVFM& data, std::string& errorMessage)
+	static inline bool ValidateDisplacementCounts(FEModel &fem, const FEOptimizeDataVFM &data, std::string &errorMessage)
 	{
 		const int nodeCount = fem.GetMesh().Nodes();
 
-		const auto& measuredHistory = data.MeasuredHistory();
+		const auto &measuredHistory = data.MeasuredHistory();
 
 		if (measuredHistory.Empty())
 		{
@@ -69,15 +69,9 @@ public:
 			return false;
 		}
 
-		if (measuredHistory.Steps() != data.DeformationHistory().Steps())
-		{
-			errorMessage = "Deformation gradient history does not match displacement history length.";
-			return false;
-		}
-
 		for (size_t i = 0; i < measuredHistory.Steps(); ++i)
 		{
-			const auto& measStep = measuredHistory[i];
+			const auto &measStep = measuredHistory[i];
 			const size_t countMeasured = measStep.displacements.Size();
 
 			if ((int)countMeasured != nodeCount)
@@ -96,10 +90,10 @@ public:
 	 * @param errorMessage Populated when the validation fails.
 	 * @return true when each measured displacement time has corresponding loads for all surfaces.
 	 */
-	static inline bool ValidateMeasuredLoads(FEModel& fem, const FEOptimizeDataVFM& data, std::string& errorMessage)
+	static inline bool ValidateMeasuredLoads(FEModel &fem, const FEOptimizeDataVFM &data, std::string &errorMessage)
 	{
-		const auto& measuredHistory = data.MeasuredHistory();
-		const auto& loadHistory = data.MeasuredLoads();
+		const auto &measuredHistory = data.MeasuredHistory();
+		const auto &loadHistory = data.MeasuredLoads();
 
 		if (measuredHistory.Empty())
 		{
@@ -116,15 +110,15 @@ public:
 		if (loadHistory.Steps() != measuredHistory.Steps())
 		{
 			errorMessage = "Measured load history contains " + std::to_string(loadHistory.Steps()) +
-				" time steps; expected " + std::to_string(measuredHistory.Steps()) + " like measured displacements.";
+						   " time steps; expected " + std::to_string(measuredHistory.Steps()) + " like measured displacements.";
 			return false;
 		}
 
 		// Gather the union of surfaces defined across the load history.
 		std::unordered_set<std::string> referenceSurfaces;
-		for (const auto& loadStep : loadHistory)
+		for (const auto &loadStep : loadHistory)
 		{
-			for (const SurfaceLoadSample& sample : loadStep.loads.Samples())
+			for (const SurfaceLoadSample &sample : loadStep.loads.Samples())
 			{
 				if (sample.id.empty())
 				{
@@ -142,10 +136,10 @@ public:
 		}
 
 		// Validate that each referenced surface exists on the mesh.
-		FEMesh& mesh = fem.GetMesh();
-		for (const std::string& surfaceId : referenceSurfaces)
+		FEMesh &mesh = fem.GetMesh();
+		for (const std::string &surfaceId : referenceSurfaces)
 		{
-			FESurface* surface = mesh.FindSurface(surfaceId.c_str());
+			FESurface *surface = mesh.FindSurface(surfaceId.c_str());
 			int faceCount = 0;
 			int nodeCount = 0;
 
@@ -156,7 +150,7 @@ public:
 			}
 			else
 			{
-				FEFacetSet* facetSet = mesh.FindFacetSet(surfaceId.c_str());
+				FEFacetSet *facetSet = mesh.FindFacetSet(surfaceId.c_str());
 				if (facetSet == nullptr)
 				{
 					errorMessage = "Measured load references surface \"" + surfaceId + "\" which does not exist in the FEBio mesh.";
@@ -174,9 +168,9 @@ public:
 			}
 		}
 
-		for (const auto& measStep : measuredHistory)
+		for (const auto &measStep : measuredHistory)
 		{
-			const auto* loadStep = loadHistory.FindStepByTime(measStep.time);
+			const auto *loadStep = loadHistory.FindStepByTime(measStep.time);
 			if (loadStep == nullptr)
 			{
 				errorMessage = "Measured load history missing timestep for t = " + std::to_string(measStep.time) + ".";
@@ -184,17 +178,17 @@ public:
 			}
 
 			const double loadTime = loadStep->time;
-			const SurfaceLoadSet& loads = loadStep->loads;
+			const SurfaceLoadSet &loads = loadStep->loads;
 			if (loads.Size() != referenceSurfaces.size())
 			{
 				errorMessage = "Measured load history at t = " + std::to_string(loadTime) +
-					" defines " + std::to_string(loads.Size()) + " surfaces; expected " +
-					std::to_string(referenceSurfaces.size()) + ".";
+							   " defines " + std::to_string(loads.Size()) + " surfaces; expected " +
+							   std::to_string(referenceSurfaces.size()) + ".";
 				return false;
 			}
 
 			std::unordered_set<std::string> encountered;
-			for (const SurfaceLoadSample& sample : loads.Samples())
+			for (const SurfaceLoadSample &sample : loads.Samples())
 			{
 				if (referenceSurfaces.find(sample.id) == referenceSurfaces.end())
 				{

@@ -21,255 +21,267 @@
 namespace
 {
 
-class VFMPlotFile : public FEBioPlotFile
-{
-public:
-	using FEBioPlotFile::FEBioPlotFile;
-	using PlotFile::AddVariable;
-};
-
-class VFMPlotMeasuredDisplacement : public FEPlotNodeData
-{
-public:
-	explicit VFMPlotMeasuredDisplacement(FEModel* fem)
-		: FEPlotNodeData(fem, PLT_VEC3F, FMT_NODE)
+	class VFMPlotFile : public FEBioPlotFile
 	{
-		SetUnits(UNIT_LENGTH);
-	}
+	public:
+		using FEBioPlotFile::FEBioPlotFile;
+		using PlotFile::AddVariable;
+	};
 
-	void SetDisplacementData(const DisplacementContainer* data) { m_data = data; }
-
-	bool Save(FEMesh& mesh, FEDataStream& a) override
+	class VFMPlotMeasuredDisplacement : public FEPlotNodeData
 	{
-		const DisplacementContainer* data = m_data;
-		writeNodalValues<vec3d>(mesh, a, [&](const FENode& node) {
+	public:
+		explicit VFMPlotMeasuredDisplacement(FEModel *fem)
+			: FEPlotNodeData(fem, PLT_VEC3F, FMT_NODE)
+		{
+			SetUnits(UNIT_LENGTH);
+		}
+
+		void SetDisplacementData(const DisplacementContainer *data) { m_data = data; }
+
+		bool Save(FEMesh &mesh, FEDataStream &a) override
+		{
+			const DisplacementContainer *data = m_data;
+			writeNodalValues<vec3d>(mesh, a, [&](const FENode &node)
+									{
 			std::array<double, 3> disp{};
 			if (data && data->TryGet(node.GetID(), disp))
 			{
 				return vec3d(disp[0], disp[1], disp[2]);
 			}
-			return vec3d(0.0, 0.0, 0.0);
-		});
-		return true;
-	}
+			return vec3d(0.0, 0.0, 0.0); });
+			return true;
+		}
 
-private:
-	const DisplacementContainer* m_data = nullptr;
-};
+	private:
+		const DisplacementContainer *m_data = nullptr;
+	};
 
-class VFMPlotVirtualDisplacement : public FEPlotNodeData
-{
-public:
-	explicit VFMPlotVirtualDisplacement(FEModel* fem)
-		: FEPlotNodeData(fem, PLT_VEC3F, FMT_NODE)
+	class VFMPlotVirtualDisplacement : public FEPlotNodeData
 	{
-		SetUnits(UNIT_LENGTH);
-	}
+	public:
+		explicit VFMPlotVirtualDisplacement(FEModel *fem)
+			: FEPlotNodeData(fem, PLT_VEC3F, FMT_NODE)
+		{
+			SetUnits(UNIT_LENGTH);
+		}
 
-	void SetDisplacementData(const DisplacementContainer* data) { m_data = data; }
+		void SetDisplacementData(const DisplacementContainer *data) { m_data = data; }
 
-	bool Save(FEMesh& mesh, FEDataStream& a) override
-	{
-		const DisplacementContainer* data = m_data;
-		writeNodalValues<vec3d>(mesh, a, [&](const FENode& node) {
+		bool Save(FEMesh &mesh, FEDataStream &a) override
+		{
+			const DisplacementContainer *data = m_data;
+			writeNodalValues<vec3d>(mesh, a, [&](const FENode &node)
+									{
 			std::array<double, 3> disp{};
 			if (data && data->TryGet(node.GetID(), disp))
 			{
 				return vec3d(disp[0], disp[1], disp[2]);
 			}
-			return vec3d(0.0, 0.0, 0.0);
-		});
-		return true;
-	}
+			return vec3d(0.0, 0.0, 0.0); });
+			return true;
+		}
 
-private:
-	const DisplacementContainer* m_data = nullptr;
-};
+	private:
+		const DisplacementContainer *m_data = nullptr;
+	};
 
-class VFMPlotDeformationGradient : public FEPlotDomainData
-{
-public:
-	explicit VFMPlotDeformationGradient(FEModel* fem)
-		: FEPlotDomainData(fem, PLT_MAT3F, FMT_ITEM)
+	class VFMPlotDeformationGradient : public FEPlotDomainData
 	{
-		SetUnits(UNIT_NONE);
-	}
-
-	void SetDeformationData(const DeformationGradientField* field) { m_field = field; }
-
-	bool Save(FEDomain& dom, FEDataStream& a) override
-	{
-		if (dom.Class() != FE_DOMAIN_SOLID)
+	public:
+		explicit VFMPlotDeformationGradient(FEModel *fem)
+			: FEPlotDomainData(fem, PLT_MAT3F, FMT_ITEM)
 		{
-			for (int i = 0; i < dom.Elements(); ++i)
+			SetUnits(UNIT_NONE);
+		}
+
+		void SetDeformationData(const DeformationGradientField *field) { m_field = field; }
+
+		bool Save(FEDomain &dom, FEDataStream &a) override
+		{
+			if (dom.Class() != FE_DOMAIN_SOLID)
 			{
-				a << mat3d::identity();
+				for (int i = 0; i < dom.Elements(); ++i)
+				{
+					a << mat3d::identity();
+				}
+				return true;
+			}
+
+			FESolidDomain &sd = static_cast<FESolidDomain &>(dom);
+			for (int i = 0; i < sd.Elements(); ++i)
+			{
+				FESolidElement &el = sd.Element(i);
+				const DeformationGradientField *field = m_field;
+				const GaussPointDeformation *gpF = (field ? field->Find(el.GetID()) : nullptr);
+
+				mat3d Fav = mat3d::identity();
+				if (gpF && !gpF->gradients.empty())
+				{
+					mat3d accumulator;
+					accumulator.zero();
+					for (const mat3d &F : gpF->gradients)
+						accumulator += F;
+					accumulator /= static_cast<double>(gpF->gradients.size());
+					Fav = accumulator;
+				}
+
+				a << Fav;
 			}
 			return true;
 		}
 
-		FESolidDomain& sd = static_cast<FESolidDomain&>(dom);
-		for (int i = 0; i < sd.Elements(); ++i)
-		{
-			FESolidElement& el = sd.Element(i);
-			const DeformationGradientField* field = m_field;
-			const GaussPointDeformation* gpF = (field ? field->Find(el.GetID()) : nullptr);
+	private:
+		const DeformationGradientField *m_field = nullptr;
+	};
 
-			mat3d Fav = mat3d::identity();
-			if (gpF && !gpF->gradients.empty())
+	class VFMPlotStress : public FEPlotDomainData
+	{
+	public:
+		explicit VFMPlotStress(FEModel *fem)
+			: FEPlotDomainData(fem, PLT_MAT3FS, FMT_ITEM)
+		{
+			SetUnits(UNIT_PRESSURE);
+		}
+
+		void SetStressData(const StressField *field) { m_field = field; }
+
+		bool Save(FEDomain &dom, FEDataStream &a) override
+		{
+			if (dom.Class() != FE_DOMAIN_SOLID)
 			{
-				mat3d accumulator; accumulator.zero();
-				for (const mat3d& F : gpF->gradients) accumulator += F;
-				accumulator /= static_cast<double>(gpF->gradients.size());
-				Fav = accumulator;
+				mat3ds zero;
+				zero.zero();
+				for (int i = 0; i < dom.Elements(); ++i)
+					a << zero;
+				return true;
 			}
 
-			a << Fav;
-		}
-		return true;
-	}
+			FESolidDomain &sd = static_cast<FESolidDomain &>(dom);
+			for (int i = 0; i < sd.Elements(); ++i)
+			{
+				FESolidElement &el = sd.Element(i);
+				const StressField *field = m_field;
+				const GaussPointStress *gpS = (field ? field->Find(el.GetID()) : nullptr);
 
-private:
-	const DeformationGradientField* m_field = nullptr;
-};
+				mat3ds Sav;
+				Sav.zero();
+				if (gpS && !gpS->stresses.empty())
+				{
+					mat3ds accumulator;
+					accumulator.zero();
+					for (const mat3ds &s : gpS->stresses)
+						accumulator += s;
+					accumulator /= static_cast<double>(gpS->stresses.size());
+					Sav = accumulator;
+				}
 
-class VFMPlotStress : public FEPlotDomainData
-{
-public:
-	explicit VFMPlotStress(FEModel* fem)
-		: FEPlotDomainData(fem, PLT_MAT3FS, FMT_ITEM)
-	{
-		SetUnits(UNIT_PRESSURE);
-	}
-
-	void SetStressData(const StressField* field) { m_field = field; }
-
-	bool Save(FEDomain& dom, FEDataStream& a) override
-	{
-		if (dom.Class() != FE_DOMAIN_SOLID)
-		{
-			mat3ds zero; zero.zero();
-			for (int i = 0; i < dom.Elements(); ++i) a << zero;
+				a << Sav;
+			}
 			return true;
 		}
 
-		FESolidDomain& sd = static_cast<FESolidDomain&>(dom);
-		for (int i = 0; i < sd.Elements(); ++i)
-		{
-			FESolidElement& el = sd.Element(i);
-			const StressField* field = m_field;
-			const GaussPointStress* gpS = (field ? field->Find(el.GetID()) : nullptr);
+	private:
+		const StressField *m_field = nullptr;
+	};
 
-			mat3ds Sav; Sav.zero();
-			if (gpS && !gpS->stresses.empty())
+	class VFMPlotFirstPiolaStress : public FEPlotDomainData
+	{
+	public:
+		explicit VFMPlotFirstPiolaStress(FEModel *fem)
+			: FEPlotDomainData(fem, PLT_MAT3F, FMT_ITEM)
+		{
+			SetUnits(UNIT_PRESSURE);
+		}
+
+		void SetStressData(const FirstPiolaField *field) { m_field = field; }
+
+		bool Save(FEDomain &dom, FEDataStream &a) override
+		{
+			if (dom.Class() != FE_DOMAIN_SOLID)
 			{
-				mat3ds accumulator; accumulator.zero();
-				for (const mat3ds& s : gpS->stresses) accumulator += s;
-				accumulator /= static_cast<double>(gpS->stresses.size());
-				Sav = accumulator;
+				mat3d zero;
+				zero.zero();
+				for (int i = 0; i < dom.Elements(); ++i)
+					a << zero;
+				return true;
 			}
 
-			a << Sav;
-		}
-		return true;
-	}
+			FESolidDomain &sd = static_cast<FESolidDomain &>(dom);
+			for (int i = 0; i < sd.Elements(); ++i)
+			{
+				FESolidElement &el = sd.Element(i);
+				const FirstPiolaField *field = m_field;
+				const GaussPointFirstPiola *gpP = (field ? field->Find(el.GetID()) : nullptr);
 
-private:
-	const StressField* m_field = nullptr;
-};
+				mat3d Pav;
+				Pav.zero();
+				if (gpP && !gpP->stresses.empty())
+				{
+					mat3d accumulator;
+					accumulator.zero();
+					for (const mat3d &P : gpP->stresses)
+						accumulator += P;
+					accumulator /= static_cast<double>(gpP->stresses.size());
+					Pav = accumulator;
+				}
 
-class VFMPlotFirstPiolaStress : public FEPlotDomainData
-{
-public:
-	explicit VFMPlotFirstPiolaStress(FEModel* fem)
-		: FEPlotDomainData(fem, PLT_MAT3F, FMT_ITEM)
-	{
-		SetUnits(UNIT_PRESSURE);
-	}
-
-	void SetStressData(const FirstPiolaField* field) { m_field = field; }
-
-	bool Save(FEDomain& dom, FEDataStream& a) override
-	{
-		if (dom.Class() != FE_DOMAIN_SOLID)
-		{
-			mat3d zero; zero.zero();
-			for (int i = 0; i < dom.Elements(); ++i) a << zero;
+				a << Pav;
+			}
 			return true;
 		}
 
-		FESolidDomain& sd = static_cast<FESolidDomain&>(dom);
-		for (int i = 0; i < sd.Elements(); ++i)
-		{
-			FESolidElement& el = sd.Element(i);
-			const FirstPiolaField* field = m_field;
-			const GaussPointFirstPiola* gpP = (field ? field->Find(el.GetID()) : nullptr);
-
-			mat3d Pav; Pav.zero();
-			if (gpP && !gpP->stresses.empty())
-			{
-				mat3d accumulator; accumulator.zero();
-				for (const mat3d& P : gpP->stresses) accumulator += P;
-				accumulator /= static_cast<double>(gpP->stresses.size());
-				Pav = accumulator;
-			}
-
-			a << Pav;
-		}
-		return true;
-	}
-
-private:
-	const FirstPiolaField* m_field = nullptr;
-};
+	private:
+		const FirstPiolaField *m_field = nullptr;
+	};
 
 } // namespace
 
 struct VFMExportSession::Impl
 {
-	FEModel& fem;
+	FEModel &fem;
 	std::string filePath;
 	VFMPlotFile plot;
 
-	VFMPlotMeasuredDisplacement* measuredField = nullptr;
-	VFMPlotMeasuredDisplacement* measuredEvalField = nullptr;
-	const DisplacementHistory* measuredHist = nullptr;
+	VFMPlotMeasuredDisplacement *measuredField = nullptr;
+	VFMPlotMeasuredDisplacement *measuredEvalField = nullptr;
+	const DisplacementHistory *measuredHist = nullptr;
 
-	std::vector<VFMPlotVirtualDisplacement*> virtualPlots;
-	std::vector<const VirtualDisplacementCollection::Field*> virtualRefs;
+	std::vector<VFMPlotVirtualDisplacement *> virtualPlots;
+	std::vector<const VirtualDisplacementCollection::Field *> virtualRefs;
 
-	std::vector<VFMPlotDeformationGradient*> virtualDefPlots;
-	std::vector<const VirtualDeformationGradientCollection::Field*> virtualDefRefs;
+	std::vector<VFMPlotDeformationGradient *> virtualDefPlots;
+	std::vector<const VirtualDeformationGradientCollection::Field *> virtualDefRefs;
 
-	VFMPlotDeformationGradient* measuredDefField = nullptr;
-	const DeformationGradientHistory* measuredDefHist = nullptr;
+	VFMPlotDeformationGradient *measuredDefField = nullptr;
+	const DeformationGradientHistory *measuredDefHist = nullptr;
 
-	VFMPlotStress* stressField = nullptr;
-	const StressHistory* stressHist = nullptr;
-	VFMPlotFirstPiolaStress* firstPiolaField = nullptr;
-	const FirstPiolaHistory* firstPiolaHist = nullptr;
+	VFMPlotStress *stressField = nullptr;
+	const StressHistory *stressHist = nullptr;
+	VFMPlotFirstPiolaStress *firstPiolaField = nullptr;
+	const FirstPiolaHistory *firstPiolaHist = nullptr;
 
 	std::vector<double> times;
 	bool finalized = false;
 
 	static constexpr double TIME_EPS = 1e-12;
 
-	Impl(const std::string& path, FEModel& femRef)
+	Impl(const std::string &path, FEModel &femRef)
 		: fem(femRef), filePath(path), plot(&femRef)
 	{
 		plot.SetSoftwareString("FEBio VFM plug-in");
 	}
 
 	template <typename History>
-	void AppendTimes(const History& history)
+	void AppendTimes(const History &history)
 	{
-		for (const auto& step : history.StepsRef())
+		for (const auto &step : history.StepsRef())
 		{
 			times.push_back(step.time);
 		}
 	}
 
-	bool AddMeasuredDisplacements(const DisplacementHistory& hist, std::string& error)
+	bool AddMeasuredDisplacements(const DisplacementHistory &hist, std::string &error)
 	{
 		if (measuredHist != nullptr)
 		{
@@ -277,7 +289,7 @@ struct VFMExportSession::Impl
 			return false;
 		}
 
-		VFMPlotMeasuredDisplacement* measured = new VFMPlotMeasuredDisplacement(&fem);
+		VFMPlotMeasuredDisplacement *measured = new VFMPlotMeasuredDisplacement(&fem);
 		if (!plot.AddVariable(measured, "Measured Displacement"))
 		{
 			error = "Failed to register measured displacement field.";
@@ -285,7 +297,7 @@ struct VFMExportSession::Impl
 			return false;
 		}
 
-		VFMPlotMeasuredDisplacement* eval = new VFMPlotMeasuredDisplacement(&fem);
+		VFMPlotMeasuredDisplacement *eval = new VFMPlotMeasuredDisplacement(&fem);
 		if (!plot.AddVariable(eval, "Measured Displacement Eval"))
 		{
 			error = "Failed to register displacement field.";
@@ -300,31 +312,30 @@ struct VFMExportSession::Impl
 		return true;
 	}
 
-	bool AddVirtualDisplacements(const VirtualDisplacementCollection& fields, std::string& error)
+	bool AddVirtualDisplacements(const VirtualDisplacementCollection &fields, std::string &error)
 	{
-	if (fields.Empty())
-	{
-		VFMPlotVirtualDisplacement* plotVar = new VFMPlotVirtualDisplacement(&fem);
-		if (!plot.AddVariable(plotVar, "Virtual Displacement"))
+		if (fields.Empty())
 		{
-			error = "Failed to register virtual displacement field.";
-			delete plotVar;
-			return false;
+			VFMPlotVirtualDisplacement *plotVar = new VFMPlotVirtualDisplacement(&fem);
+			if (!plot.AddVariable(plotVar, "Virtual Displacement"))
+			{
+				error = "Failed to register virtual displacement field.";
+				delete plotVar;
+				return false;
+			}
+			virtualRefs.push_back(nullptr);
+			virtualPlots.push_back(plotVar);
+			return true;
 		}
-		feLogEx(&fem, "VFM export: registered plot field '%s'", "Virtual Displacement\n");
-		virtualRefs.push_back(nullptr);
-		virtualPlots.push_back(plotVar);
-		return true;
-	}
 
 		virtualPlots.reserve(virtualPlots.size() + fields.Size());
 		virtualRefs.reserve(virtualRefs.size() + fields.Size());
 
 		size_t idx = 0;
-	for (const auto& field : fields.Data())
-	{
-		VFMPlotVirtualDisplacement* plotVar = new VFMPlotVirtualDisplacement(&fem);
-		std::string varName = "Virtual Displacement";
+		for (const auto &field : fields.Data())
+		{
+			VFMPlotVirtualDisplacement *plotVar = new VFMPlotVirtualDisplacement(&fem);
+			std::string varName = "Virtual Displacement";
 			if (!field.id.empty())
 			{
 				varName += " " + field.id;
@@ -334,33 +345,33 @@ struct VFMExportSession::Impl
 				varName += " #" + std::to_string(idx);
 			}
 
-		if (!plot.AddVariable(plotVar, varName.c_str()))
-		{
-			error = "Failed to register virtual displacement field.";
-			delete plotVar;
-			return false;
-		}
+			if (!plot.AddVariable(plotVar, varName.c_str()))
+			{
+				error = "Failed to register virtual displacement field.";
+				delete plotVar;
+				return false;
+			}
 
-		feLogEx(&fem, "VFM export: registered plot field '%s'\n", varName.c_str());
-		virtualRefs.push_back(&field);
-		virtualPlots.push_back(plotVar);
+			virtualRefs.push_back(&field);
+			virtualPlots.push_back(plotVar);
 			AppendTimes(field.history);
 			++idx;
 		}
 		return true;
 	}
 
-	bool AddVirtualDeformationGradients(const VirtualDeformationGradientCollection& fields, std::string& error)
+	bool AddVirtualDeformationGradients(const VirtualDeformationGradientCollection &fields, std::string &error)
 	{
-		if (fields.Empty()) return true;
+		if (fields.Empty())
+			return true;
 
 		virtualDefPlots.reserve(virtualDefPlots.size() + fields.Size());
 		virtualDefRefs.reserve(virtualDefRefs.size() + fields.Size());
 
 		size_t idx = 0;
-	for (const auto& field : fields.Data())
-	{
-		VFMPlotDeformationGradient* plotVar = new VFMPlotDeformationGradient(&fem);
+		for (const auto &field : fields.Data())
+		{
+			VFMPlotDeformationGradient *plotVar = new VFMPlotDeformationGradient(&fem);
 			std::string varName = "Virtual Defgrad";
 			if (!field.id.empty())
 			{
@@ -371,23 +382,22 @@ struct VFMExportSession::Impl
 				varName += " #" + std::to_string(idx);
 			}
 
-		if (!plot.AddVariable(plotVar, varName.c_str()))
-		{
-			error = "Failed to register virtual deformation gradient field.";
-			delete plotVar;
-			return false;
-		}
+			if (!plot.AddVariable(plotVar, varName.c_str()))
+			{
+				error = "Failed to register virtual deformation gradient field.";
+				delete plotVar;
+				return false;
+			}
 
-		feLogEx(&fem, "VFM export: registered plot field '%s'\n", varName.c_str());
-		virtualDefRefs.push_back(&field);
-		virtualDefPlots.push_back(plotVar);
+			virtualDefRefs.push_back(&field);
+			virtualDefPlots.push_back(plotVar);
 			AppendTimes(field.history);
 			++idx;
 		}
 		return true;
 	}
 
-	bool AddMeasuredDeformationGradients(const DeformationGradientHistory& hist, std::string& error)
+	bool AddMeasuredDeformationGradients(const DeformationGradientHistory &hist, std::string &error)
 	{
 		if (measuredDefHist != nullptr)
 		{
@@ -395,7 +405,7 @@ struct VFMExportSession::Impl
 			return false;
 		}
 
-		VFMPlotDeformationGradient* plotVar = new VFMPlotDeformationGradient(&fem);
+		VFMPlotDeformationGradient *plotVar = new VFMPlotDeformationGradient(&fem);
 		if (!plot.AddVariable(plotVar, "Measured Deformation Gradient"))
 		{
 			error = "Failed to register deformation gradient field.";
@@ -409,7 +419,7 @@ struct VFMExportSession::Impl
 		return true;
 	}
 
-	bool AddMeasuredStress(const StressHistory& hist, std::string& error)
+	bool AddMeasuredStress(const StressHistory &hist, std::string &error)
 	{
 		if (stressHist != nullptr)
 		{
@@ -417,7 +427,7 @@ struct VFMExportSession::Impl
 			return false;
 		}
 
-		VFMPlotStress* plotVar = new VFMPlotStress(&fem);
+		VFMPlotStress *plotVar = new VFMPlotStress(&fem);
 		if (!plot.AddVariable(plotVar, "Measured Stress"))
 		{
 			error = "Failed to register stress field.";
@@ -431,7 +441,7 @@ struct VFMExportSession::Impl
 		return true;
 	}
 
-	bool AddFirstPiolaStress(const FirstPiolaHistory& hist, std::string& error)
+	bool AddFirstPiolaStress(const FirstPiolaHistory &hist, std::string &error)
 	{
 		if (firstPiolaHist != nullptr)
 		{
@@ -439,7 +449,7 @@ struct VFMExportSession::Impl
 			return false;
 		}
 
-		VFMPlotFirstPiolaStress* plotVar = new VFMPlotFirstPiolaStress(&fem);
+		VFMPlotFirstPiolaStress *plotVar = new VFMPlotFirstPiolaStress(&fem);
 		if (!plot.AddVariable(plotVar, "Measured First Piola Stress"))
 		{
 			error = "Failed to register first Piola stress field.";
@@ -453,9 +463,10 @@ struct VFMExportSession::Impl
 		return true;
 	}
 
-	bool Finalize(std::string& error)
+	bool Finalize(std::string &error)
 	{
-		if (finalized) return true;
+		if (finalized)
+			return true;
 
 		if (times.empty())
 		{
@@ -482,7 +493,7 @@ struct VFMExportSession::Impl
 
 		for (double t : uniqueTimes)
 		{
-			const DisplacementHistory::TimeStep* measuredStep = nullptr;
+			const DisplacementHistory::TimeStep *measuredStep = nullptr;
 			if (measuredHist)
 			{
 				measuredStep = measuredHist->FindStepByTime(t, TIME_EPS);
@@ -499,7 +510,7 @@ struct VFMExportSession::Impl
 
 			for (size_t i = 0; i < virtualPlots.size(); ++i)
 			{
-				const DisplacementHistory::TimeStep* stepPtr = nullptr;
+				const DisplacementHistory::TimeStep *stepPtr = nullptr;
 				if (virtualRefs[i] != nullptr)
 				{
 					stepPtr = virtualRefs[i]->history.FindStepByTime(t, TIME_EPS);
@@ -507,10 +518,10 @@ struct VFMExportSession::Impl
 				virtualPlots[i]->SetDisplacementData(stepPtr ? &stepPtr->displacements : nullptr);
 			}
 
-			const DeformationGradientHistory::TimeStep* measuredDefStep = nullptr;
+			const DeformationGradientHistory::TimeStep *measuredDefStep = nullptr;
 			if (measuredDefHist)
 			{
-				for (const auto& step : measuredDefHist->StepsRef())
+				for (const auto &step : measuredDefHist->StepsRef())
 				{
 					if (std::fabs(step.time - t) <= TIME_EPS)
 					{
@@ -522,10 +533,10 @@ struct VFMExportSession::Impl
 
 			for (size_t i = 0; i < virtualDefPlots.size(); ++i)
 			{
-				const DeformationGradientHistory::TimeStep* stepPtr = nullptr;
+				const DeformationGradientHistory::TimeStep *stepPtr = nullptr;
 				if (virtualDefRefs[i] != nullptr)
 				{
-					for (const auto& step : virtualDefRefs[i]->history.StepsRef())
+					for (const auto &step : virtualDefRefs[i]->history.StepsRef())
 					{
 						if (std::fabs(step.time - t) <= TIME_EPS)
 						{
@@ -542,10 +553,10 @@ struct VFMExportSession::Impl
 				measuredDefField->SetDeformationData(measuredDefStep ? &measuredDefStep->field : nullptr);
 			}
 
-			const StressHistory::TimeStep* stressStep = nullptr;
+			const StressHistory::TimeStep *stressStep = nullptr;
 			if (stressHist)
 			{
-				for (const auto& step : stressHist->StepsRef())
+				for (const auto &step : stressHist->StepsRef())
 				{
 					if (std::fabs(step.time - t) <= TIME_EPS)
 					{
@@ -560,10 +571,10 @@ struct VFMExportSession::Impl
 				stressField->SetStressData(stressStep ? &stressStep->field : nullptr);
 			}
 
-			const FirstPiolaHistory::TimeStep* piolaStep = nullptr;
+			const FirstPiolaHistory::TimeStep *piolaStep = nullptr;
 			if (firstPiolaHist)
 			{
-				for (const auto& step : firstPiolaHist->StepsRef())
+				for (const auto &step : firstPiolaHist->StepsRef())
 				{
 					if (std::fabs(step.time - t) <= TIME_EPS)
 					{
@@ -592,44 +603,44 @@ struct VFMExportSession::Impl
 	}
 };
 
-VFMExportSession::VFMExportSession(const std::string& filePath, FEModel& fem)
+VFMExportSession::VFMExportSession(const std::string &filePath, FEModel &fem)
 	: m_impl(std::unique_ptr<Impl>(new Impl(filePath, fem)))
 {
 }
 
 VFMExportSession::~VFMExportSession() = default;
 
-bool VFMExportSession::AddMeasuredDisplacements(const DisplacementHistory& hist, std::string& error)
+bool VFMExportSession::AddMeasuredDisplacements(const DisplacementHistory &hist, std::string &error)
 {
 	return m_impl->AddMeasuredDisplacements(hist, error);
 }
 
-bool VFMExportSession::AddVirtualDisplacements(const VirtualDisplacementCollection& fields, std::string& error)
+bool VFMExportSession::AddVirtualDisplacements(const VirtualDisplacementCollection &fields, std::string &error)
 {
 	return m_impl->AddVirtualDisplacements(fields, error);
 }
 
-bool VFMExportSession::AddVirtualDeformationGradients(const VirtualDeformationGradientCollection& fields, std::string& error)
+bool VFMExportSession::AddVirtualDeformationGradients(const VirtualDeformationGradientCollection &fields, std::string &error)
 {
 	return m_impl->AddVirtualDeformationGradients(fields, error);
 }
 
-bool VFMExportSession::AddMeasuredDeformationGradients(const DeformationGradientHistory& hist, std::string& error)
+bool VFMExportSession::AddMeasuredDeformationGradients(const DeformationGradientHistory &hist, std::string &error)
 {
 	return m_impl->AddMeasuredDeformationGradients(hist, error);
 }
 
-bool VFMExportSession::AddMeasuredStress(const StressHistory& hist, std::string& error)
+bool VFMExportSession::AddMeasuredStress(const StressHistory &hist, std::string &error)
 {
 	return m_impl->AddMeasuredStress(hist, error);
 }
 
-bool VFMExportSession::AddFirstPiolaStress(const FirstPiolaHistory& hist, std::string& error)
+bool VFMExportSession::AddFirstPiolaStress(const FirstPiolaHistory &hist, std::string &error)
 {
 	return m_impl->AddFirstPiolaStress(hist, error);
 }
 
-bool VFMExportSession::Finalize(std::string& error)
+bool VFMExportSession::Finalize(std::string &error)
 {
 	return m_impl->Finalize(error);
 }
