@@ -4,7 +4,8 @@
 
 #include <FECore/FECoreKernel.h>
 
-#include "VFM.h"
+// #include "VFM.h"
+#include "task/vfm_task.h"
 
 FECORE_EXPORT unsigned int GetSDKVersion()
 {
@@ -14,7 +15,7 @@ FECORE_EXPORT unsigned int GetSDKVersion()
 FECORE_EXPORT void PluginInitialize(FECoreKernel& febio)
 {
     FECoreKernel::SetInstance(&febio);
-    REGISTER_FECORE_CLASS(FEVFMTask, "VFM");
+    REGISTER_FECORE_CLASS(VFMTask, "VFM2");
 }
 
 FECORE_EXPORT void PluginCleanup()

@@ -416,7 +416,7 @@ namespace
  * @note The context structure is left empty on purpose; it will be populated
  * once command line handling is expanded beyond simple file loading.
  */
-FEVFMTask::FEVFMTask(FEModel *fem) : FECoreTask(fem), m_opt(fem)
+VFMTask::VFMTask(FEModel *fem) : FECoreTask(fem), m_opt(fem)
 {
 }
 
@@ -432,7 +432,7 @@ FEVFMTask::FEVFMTask(FEModel *fem) : FECoreTask(fem), m_opt(fem)
  * @note Additional context fields (e.g. measured data paths) are not yet parsed,
  * so @c m_context remains mostly empty after this call.
  */
-bool FEVFMTask::Init(const char *szfile)
+bool VFMTask::Init(const char *szfile)
 {
 	feLog("\n");
 	feLog("===========================================================================\n");
@@ -470,7 +470,7 @@ bool FEVFMTask::Init(const char *szfile)
 	return true;
 }
 
-bool FEVFMTask::LoadInput(const char *szfile)
+bool VFMTask::LoadInput(const char *szfile)
 {
 	if (m_opt.Input(szfile) == false)
 	{
@@ -481,7 +481,7 @@ bool FEVFMTask::LoadInput(const char *szfile)
 	return true;
 }
 
-bool FEVFMTask::InitializeParameters()
+bool VFMTask::InitializeParameters()
 {
 	if (m_opt.Init() == false)
 	{
@@ -492,7 +492,7 @@ bool FEVFMTask::InitializeParameters()
 	return true;
 }
 
-bool FEVFMTask::ValidateFEModel()
+bool VFMTask::ValidateFEModel()
 {
 	// Just validating that the model contains solid domains for now.
 	std::string validationError;
@@ -504,7 +504,7 @@ bool FEVFMTask::ValidateFEModel()
 	return true;
 }
 
-bool FEVFMTask::ComputeMeasuredKinematics()
+bool VFMTask::ComputeMeasuredKinematics()
 {
 	const auto &measuredHistory = m_opt.MeasuredHistory();
 	auto &defHistory = m_opt.DeformationHistory();
@@ -534,7 +534,7 @@ bool FEVFMTask::ComputeMeasuredKinematics()
 	return true;
 }
 
-bool FEVFMTask::ComputeVirtualKinematics()
+bool VFMTask::ComputeVirtualKinematics()
 {
 	auto &virtualGradients = m_opt.VirtualDeformationGradients();
 	virtualGradients.Clear();
@@ -570,7 +570,7 @@ bool FEVFMTask::ComputeVirtualKinematics()
 	return true;
 }
 
-bool FEVFMTask::ValidateDataConsistency()
+bool VFMTask::ValidateDataConsistency()
 {
 	std::string validationError;
 	if (!VFMValidation::ValidateDisplacementCounts(*m_opt.GetFEModel(), m_opt, validationError))
@@ -589,7 +589,7 @@ bool FEVFMTask::ValidateDataConsistency()
 	return true;
 }
 
-bool FEVFMTask::ComputeExternalVirtualWork()
+bool VFMTask::ComputeExternalVirtualWork()
 {
 	const auto &loadsHistory = m_opt.MeasuredLoads();
 	const auto &virtualFields = m_opt.VirtualFields();
@@ -720,13 +720,13 @@ bool FEVFMTask::ComputeExternalVirtualWork()
 	return true;
 }
 
-bool FEVFMTask::LogDiagnostics()
+bool VFMTask::LogDiagnostics()
 {
 	// LogSetupDiagnostics(m_opt);
 	return true;
 }
 
-bool FEVFMTask::ExportState(const char *szfile)
+bool VFMTask::ExportState(const char *szfile)
 {
 	std::string plotPath;
 	if (szfile && *szfile)
@@ -785,7 +785,7 @@ bool FEVFMTask::ExportState(const char *szfile)
 	return true;
 }
 
-void FEVFMTask::LogVector(const char *tag, const std::vector<double> &v)
+void VFMTask::LogVector(const char *tag, const std::vector<double> &v)
 {
 	feLog("%s [n=%zu]\n", tag, v.size());
 	double l2 = 0.0, l1 = 0.0, amax = 0.0;
@@ -814,7 +814,7 @@ void FEVFMTask::LogVector(const char *tag, const std::vector<double> &v)
  * @note The success return keeps FEBio from aborting while the scaffolding is
  * developed, and the log output informs users about the missing pieces.
  */
-bool FEVFMTask::Run()
+bool VFMTask::Run()
 {
 	feLog("...........................................................................\n");
 	feLog("                                    RUN                                    \n");
@@ -838,7 +838,7 @@ bool FEVFMTask::Run()
 	return true;
 }
 
-void FEVFMTask::LogParameterTable(std::vector<FEInputParameterVFM *> &vars, const char *title, int precision)
+void VFMTask::LogParameterTable(std::vector<FEInputParameterVFM *> &vars, const char *title, int precision)
 {
 	// column widths
 	size_t wname = 4; // "Name"

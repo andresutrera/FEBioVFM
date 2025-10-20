@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <febio_optimize version="2.0">
   <Parameters>
-    <param name="fem.material[0].G">1, 0, 5</param>
+    <param name="fem.material[0].G">0.01, 0, 5000000</param>
   </Parameters>
   <MeasuredDisplacements>
-      <time t="0.0">
+      <time t="1">
         <node id="1">0,0,0</node>
         <node id="2">0,0,0</node>
         <node id="3">0,0,0</node>
@@ -118,10 +118,10 @@
         <node id='2'>1,0,0</node>
         <node id='3'>1,1,0</node>
         <node id='4'>0,1,0</node>
-        <node id='5'>0,0,-0.749344</node>
-        <node id='6'>1,0,-0.749344</node>
-        <node id='7'>1,1,-0.749344</node>
-        <node id='8'>0,1,-0.749344</node>
+        <node id='5'>0,0,-0.75</node>
+        <node id='6'>1,0,-0.75</node>
+        <node id='7'>1,1,-0.75</node>
+        <node id='8'>0,1,-0.75</node>
       </time>
   </MeasuredDisplacements>
   <VirtualDisplacements>
