@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <febio_optimize version="2.0">
   <Parameters>
-    <param name="fem.material[0].G">0.1, 0, 5</param>
+    <param name="fem.material[0].G">0.01, 0, 5</param>
   </Parameters>
   <MeasuredDisplacements>
       <time t="0.0">

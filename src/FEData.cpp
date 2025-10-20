@@ -261,8 +261,12 @@ void FEOptimizeDataVFM::GetParameterVector(std::vector<double> &values) const
 	}
 }
 
-bool FEOptimizeDataVFM::ComputeStress(std::string &errorMessage)
+bool FEOptimizeDataVFM::ComputeStress(const std::vector<double> &params, std::string &errorMessage)
 {
+
+	if (!SetParameterVector(params, errorMessage))
+		return false;
+
 	auto &defHistory = DeformationHistory();
 	auto &stressHistory = StressTimeline();
 	auto &piolaHistory = FirstPiolaTimeline();
@@ -300,88 +304,83 @@ bool FEOptimizeDataVFM::ComputeStress(std::string &errorMessage)
 	return true;
 }
 
-bool FEOptimizeDataVFM::ComputeInternalWork(std::vector<double> &residual)
+std::vector<double> FEOptimizeDataVFM::ComputeInternalWork(const std::vector<double> &params)
 {
+	// set parameters
+	std::string _;
+	if (!SetParameterVector(params, _))
+		return {};
+
+	// ensure stress/first-Piola are current
+	if (!ComputeStress(params, _))
+		return {};
+
 	const size_t fieldCount = m_virtualDefGradients.Size();
 	const size_t timeCount = FirstPiolaTimeline().Steps();
+	if (fieldCount == 0 || timeCount == 0)
+		return {};
 
-	residual.assign(fieldCount * timeCount, 0.0);
-
-	if ((fieldCount == 0) || (timeCount == 0))
-	{
-		residual.clear();
-		return true;
-	}
-
+	// precompute integration weights per element
 	FEMesh &mesh = GetFEModel()->GetMesh();
-	std::unordered_map<int, std::vector<double>> integrationWeights;
+	std::unordered_map<int, std::vector<double>> wmap;
+	wmap.reserve(static_cast<size_t>(mesh.Domains()) * 8);
 
-	const int domainCount = mesh.Domains();
-	for (int domIdx = 0; domIdx < domainCount; ++domIdx)
+	for (int d = 0; d < mesh.Domains(); ++d)
 	{
-		FEDomain &domain = mesh.Domain(domIdx);
-		auto *solidDomain = dynamic_cast<FESolidDomain *>(&domain);
-		if (solidDomain == nullptr)
+		auto *sd = dynamic_cast<FESolidDomain *>(&mesh.Domain(d));
+		if (!sd)
 			continue;
-
-		const int elemCount = solidDomain->Elements();
-		for (int elemIdx = 0; elemIdx < elemCount; ++elemIdx)
+		for (int e = 0; e < sd->Elements(); ++e)
 		{
-			FESolidElement &el = static_cast<FESolidElement &>(solidDomain->ElementRef(elemIdx));
-			const int elemId = el.GetID();
+			auto &el = static_cast<FESolidElement &>(sd->ElementRef(e));
 			const int nint = el.GaussPoints();
-
-			std::vector<double> weights(nint, 0.0);
+			std::vector<double> w(nint, 0.0);
 			double *gw = el.GaussWeights();
 			for (int n = 0; n < nint; ++n)
 			{
-				const double gaussWeight = (gw ? gw[n] : 1.0);
-				const double detJ0 = solidDomain->detJ0(el, n);
-				weights[n] = gaussWeight * detJ0;
+				const double gwgt = gw ? gw[n] : 1.0;
+				w[n] = gwgt * sd->detJ0(el, n);
 			}
-
-			integrationWeights.emplace(elemId, std::move(weights));
+			wmap.emplace(el.GetID(), std::move(w));
 		}
 	}
 
-	const double timeTolerance = 1e-12;
-	for (size_t fieldIdx = 0; fieldIdx < fieldCount; ++fieldIdx)
+	std::vector<double> internalWork(fieldCount * timeCount, 0.0);
+	const double tTol = 1e-12;
+
+	for (size_t f = 0; f < fieldCount; ++f)
 	{
-		const auto &virtualField = m_virtualDefGradients[fieldIdx];
-
-		for (size_t timeIdx = 0; timeIdx < timeCount; ++timeIdx)
+		const auto &vfield = m_virtualDefGradients[f];
+		for (size_t t = 0; t < timeCount; ++t)
 		{
-			const FirstPiolaHistory::TimeStep &piolaStep = m_firstPiolaHistory[timeIdx];
-			const DeformationGradientHistory::TimeStep *virtualStep = virtualField.history.FindStepByTime(piolaStep.time, timeTolerance);
+			const auto &Pstep = m_firstPiolaHistory[t];
+			const auto *Vstep = vfield.history.FindStepByTime(Pstep.time, tTol);
 
-			double internalVirtualWork = 0.0;
-			for (const GaussPointFirstPiola &gpPiola : piolaStep.field.Data())
+			double iw = 0.0;
+			for (const auto &gpP : Pstep.field.Data())
 			{
-				auto weightIt = integrationWeights.find(gpPiola.elementId);
+				auto it = wmap.find(gpP.elementId);
+				if (it == wmap.end())
+					return {}; // silent fail per request
+				const auto &w = it->second;
 
-				const std::vector<double> &weights = weightIt->second;
-				const GaussPointDeformation *gpVirtual = (virtualStep ? virtualStep->field.Find(gpPiola.elementId) : nullptr);
+				const auto *gpV = Vstep ? Vstep->field.Find(gpP.elementId) : nullptr;
+				const size_t nint = gpP.stresses.size();
 
-				const size_t gaussCount = gpPiola.stresses.size();
-
-				for (size_t n = 0; n < gaussCount; ++n)
+				for (size_t n = 0; n < nint; ++n)
 				{
-					const mat3d &P = gpPiola.stresses[n];
+					const mat3d &P = gpP.stresses[n];
 					mat3d G;
 					G.zero();
-					if (gpVirtual && n < gpVirtual->gradients.size())
+					if (gpV && n < gpV->gradients.size())
 					{
-						G = VirtualGradientFromDeformation(gpVirtual->gradients[n]);
+						G = VirtualGradientFromDeformation(gpV->gradients[n]);
 					}
-
-					internalVirtualWork += DoubleContraction(P, G) * weights[n];
+					iw += DoubleContraction(P, G) * w[n];
 				}
 			}
-
-			const size_t residualIndex = fieldIdx * timeCount + timeIdx;
-			residual[residualIndex] = internalVirtualWork;
+			internalWork[f * timeCount + t] = iw;
 		}
 	}
-
-	return true;
+	return internalWork;
 }

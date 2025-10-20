@@ -308,9 +308,9 @@ protected:
 	StressHistory m_stressHistory;								   ///< Cauchy stress history reconstructed from deformation gradients.
 	FirstPiolaHistory m_firstPiolaHistory;						   ///< First Piola-Kirchhoff stress history.
 
-private:
-	bool ComputeStress(std::string &errorMessage);
-	bool ComputeInternalWork(std::vector<double> &residual);
+public:
+	bool ComputeStress(const std::vector<double> &params, std::string &errorMessage);
+	std::vector<double> ComputeInternalWork(const std::vector<double> &params);
 
 private:
 };

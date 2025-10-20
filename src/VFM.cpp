@@ -782,6 +782,28 @@ bool FEVFMTask::ExportState(const char *szfile)
 	return true;
 }
 
+void FEVFMTask::LogVector(const char *tag, const std::vector<double> &v)
+{
+	feLog("%s [n=%zu]\n", tag, v.size());
+	double l2 = 0.0, l1 = 0.0, amax = 0.0;
+	for (double x : v)
+	{
+		double a = std::fabs(x);
+		l2 += x * x;
+		l1 += a;
+		if (a > amax)
+			amax = a;
+	}
+	l2 = std::sqrt(l2);
+	feLog("  ||v||_2=%.6g  ||v||_1=%.6g  max|v|=%.6g\n", l2, l1, amax);
+
+	const size_t show = std::min<size_t>(v.size(), 20);
+	for (size_t i = 0; i < show; ++i)
+		feLog("  v[%zu] = %.12g\n", i, v[i]);
+	if (v.size() > show)
+		feLog("  ... %zu more\n", v.size() - show);
+}
+
 /**
  * @brief Run the Virtual Fields Method task.
  *
@@ -798,6 +820,12 @@ bool FEVFMTask::Run()
 	feLog("\n");
 
 	// RUN LM
+	std::vector<double> p0;
+	m_opt.GetParameterVector(p0); // adjust member name if different
+
+	// 2) compute internal-work "residual" at p0
+	std::vector<double> r = m_opt.ComputeInternalWork(p0); // side-effecting; no restore
+	LogVector("Residual (internal work)", r);
 
 	if (!ExportState(m_inputFile.empty() ? nullptr : m_inputFile.c_str()))
 	{
