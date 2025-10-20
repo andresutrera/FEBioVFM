@@ -1,7 +1,5 @@
 # FEBio Virtual Fields Method Plug-in Overview
 
-> GitHub‑compatible Markdown with LaTeX math. Copy into `README.md` or docs.
-
 ---
 
 - [FEBio Virtual Fields Method Plug-in Overview](#febio-virtual-fields-method-plug-in-overview)
@@ -135,25 +133,25 @@ Implementation details:
 
 ### Stress Reconstruction
 
-The stress pipeline resides in `VFMStress` and `FEOptimizeDataVFM`:
+The stress pipeline resides in `VFMStress` and `FEOptimizeDataVFM`.
 
-1. **Deformation Gradient** — `VFMKinematics::ComputeDeformationGradients` evaluates the total Lagrangian expression
+**1) Deformation Gradient** — `VFMKinematics::ComputeDeformationGradients` evaluates the total Lagrangian expression.
 
-   $$
-   \mathbf F_{e,q} = \mathbf I + \sum_{a=1}^{n_\mathrm{node}} \mathbf u_a \otimes \nabla_X N_a(\xi_q),
-   $$
+$$
+\mathbf F_{e,q} = \mathbf I + \sum_{a=1}^{n_\mathrm{node}} \mathbf u_a \otimes \nabla_X N_a(\xi_q)
+$$
 
-   extracting nodal displacements from the measured history.
+Nodal displacements are extracted from the measured history.
 
-2. **Cauchy Stress** — `VFMStress::ComputeCauchyStress` calls into FEBio to update material point data and retrieves $\boldsymbol\sigma$.
+**2) Cauchy Stress** — `VFMStress::ComputeCauchyStress` calls into FEBio to update material point data and retrieves $\boldsymbol\sigma$.
 
-3. **First Piola–Kirchhoff Stress** — computed analytically from the Cauchy tensor and deformation gradient via
+**3) First Piola–Kirchhoff Stress** — computed analytically from the Cauchy tensor and deformation gradient.
 
-   $$
-   \mathbf P = J, \boldsymbol\sigma , \mathbf F^{-\mathsf T}, \quad J = \det\mathbf F.
-   $$
+$$
+\mathbf P = J, \boldsymbol\sigma, \mathbf F^{-\mathsf T},\quad J = \det\mathbf F
+$$
 
-4. **Virtual Deformation Gradients** — when virtual fields are supplied as displacement histories, their gradients are computed using the same kinematic routine as the measured data. The tensor $\mathbf G = \mathbf F_{\mathrm{virtual}} - \mathbf I$ is used in the internal virtual work calculation.
+**4) Virtual Deformation Gradients** — when virtual fields are supplied as displacement histories, their gradients are computed using the same kinematic routine as the measured data. The tensor $\mathbf G = \mathbf F_{\mathrm{virtual}} - \mathbf I$ is used in the internal virtual work calculation.
 
 ## Optimisation Strategy
 
