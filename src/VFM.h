@@ -7,19 +7,6 @@
 #include "VFMValidation.h"
 
 /**
- * @brief Lightweight context shared across the Virtual Fields Method workflow.
- *
- * The struct currently records the path to the secondary VFM data file and an
- * optional human readable string that can be surfaced in logs or UI. Additional
- * fields can be added incrementally as the plugin matures.
- */
-struct FEVFMContext
-{
-    std::string dataFile;    ///< Path passed via "-task=\"VFM\" VFMData.feb".
-    std::string description; ///< Human readable summary of the current study.
-};
-
-/**
  * @brief FEBio task entry point that orchestrates the Virtual Fields Method.
  *
  * The task integrates with FEBio's command line via @c -task="VFM" <file>, reads
@@ -58,11 +45,6 @@ public:
      */
     bool Run() override;
 
-    /**
-     * @brief Fetch the cached Virtual Fields context structure.
-     */
-    const FEVFMContext &Context() const { return m_context; }
-
 private:
     bool LoadInput(const char *szfile);
     bool InitializeParameters();
@@ -70,12 +52,10 @@ private:
     bool ComputeMeasuredKinematics();
     bool ComputeVirtualKinematics();
     bool ValidateDataConsistency();
-    bool ComputeStress();
     bool ComputeExternalVirtualWork();
     bool LogDiagnostics();
     bool ExportState(const char *szfile);
 
-    FEVFMContext m_context;  ///< Task-wide context populated during Init().
     FEOptimizeDataVFM m_opt; ///< Optimization data wrapper responsible for parsing input.
     std::string m_inputFile; ///< Original VFM data path used to derive export filenames.
 };

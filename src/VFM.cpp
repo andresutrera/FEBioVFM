@@ -394,22 +394,17 @@ namespace
 		LogDeformationHistory(*fem, opt.DeformationHistory());
 	}
 
-	void LogStressDiagnostics(FEOptimizeDataVFM &opt)
-	{
-		FEModel *fem = opt.GetFEModel();
-		if (fem == nullptr)
-			return;
+	// void LogStressDiagnostics(FEOptimizeDataVFM &opt)
+	// {
+	// 	FEModel *fem = opt.GetFEModel();
+	// 	if (fem == nullptr)
+	// 		return;
 
-		feLogDebugEx(fem, "---- VFM Diagnostics (stresses) ----------------------");
-		LogParameterValues(opt, "Current");
-		LogStressHistory(*fem, opt.StressTimeline());
-		LogFirstPiolaHistory(*fem, opt.FirstPiolaTimeline());
-	}
-
-	bool BuildStressHistory(FEOptimizeDataVFM &opt, std::string &errorMessage)
-	{
-		return opt.RebuildStressHistories(errorMessage);
-	}
+	// 	feLogDebugEx(fem, "---- VFM Diagnostics (stresses) ----------------------");
+	// 	LogParameterValues(opt, "Current");
+	// 	LogStressHistory(*fem, opt.StressTimeline());
+	// 	LogFirstPiolaHistory(*fem, opt.FirstPiolaTimeline());
+	// }
 
 } // namespace
 
@@ -591,26 +586,6 @@ bool FEVFMTask::ValidateDataConsistency()
 	return true;
 }
 
-bool FEVFMTask::ComputeStress()
-{
-	std::string resetError;
-	if (!m_opt.ResetParametersToInitial(resetError))
-	{
-		feLogError(resetError.c_str());
-		return false;
-	}
-
-	std::string stressError;
-	if (!BuildStressHistory(m_opt, stressError))
-	{
-		feLogError(stressError.c_str());
-		return false;
-	}
-
-	feLog("Successful stress computation.\n");
-	return true;
-}
-
 bool FEVFMTask::ComputeExternalVirtualWork()
 {
 	const auto &loadsHistory = m_opt.MeasuredLoads();
@@ -769,41 +744,41 @@ bool FEVFMTask::ExportState(const char *szfile)
 	VFMExportSession session(plotPath, *m_opt.GetFEModel());
 	if (!session.AddMeasuredDisplacements(m_opt.MeasuredHistory(), exportError))
 	{
-		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		feLogError(exportError.c_str());
 		return false;
 	}
 	if (!session.AddVirtualDisplacements(m_opt.VirtualFields(), exportError))
 	{
-		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		feLogError(exportError.c_str());
 		return false;
 	}
 	if (!session.AddVirtualDeformationGradients(m_opt.VirtualDeformationGradients(), exportError))
 	{
-		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		feLogError(exportError.c_str());
 		return false;
 	}
 	if (!session.AddMeasuredDeformationGradients(m_opt.DeformationHistory(), exportError))
 	{
-		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		feLogError(exportError.c_str());
 		return false;
 	}
 	if (!session.AddMeasuredStress(m_opt.StressTimeline(), exportError))
 	{
-		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		feLogError(exportError.c_str());
 		return false;
 	}
 	if (!session.AddFirstPiolaStress(m_opt.FirstPiolaTimeline(), exportError))
 	{
-		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		feLogError(exportError.c_str());
 		return false;
 	}
 	if (!session.Finalize(exportError))
 	{
-		feLogErrorEx(m_opt.GetFEModel(), exportError.c_str());
+		feLogError(exportError.c_str());
 		return false;
 	}
 
-	feLog("VFM: exported kinematic snapshot to %s\n", plotPath.c_str());
+	feLog("Exported results to %s\n", plotPath.c_str());
 	return true;
 }
 
@@ -822,56 +797,7 @@ bool FEVFMTask::Run()
 	feLog("\n");
 	feLog("\n");
 
-	std::string stressError;
-	if (!BuildStressHistory(m_opt, stressError))
-	{
-		feLogErrorEx(m_opt.GetFEModel(), stressError.c_str());
-		return false;
-	}
-
-	std::vector<double> levmarInfo;
-	std::string optimizationError;
-	if (!m_opt.MinimizeResidualWithLevmar(0, &levmarInfo, optimizationError))
-	{
-		const char *message = optimizationError.empty() ? "Unknown levmar failure." : optimizationError.c_str();
-		feLogErrorEx(m_opt.GetFEModel(), "VFM: levmar optimization failed: %s", message);
-		return false;
-	}
-
-	feLog("VFM: levmar completed after %d iterations.\n", m_opt.m_niter);
-	if (levmarInfo.size() >= LM_INFO_SZ)
-	{
-		feLog("VFM: levmar termination details: ||J^T F||=%-.6g, ||delta||=%-.6g, mu=%-.6g, stopReason=%g\n",
-			  levmarInfo[1],
-			  levmarInfo[2],
-			  levmarInfo[4],
-			  levmarInfo[6]);
-	}
-
-	LogParameterValues(m_opt, "Optimized");
-	std::vector<double> optimizedParameters;
-	m_opt.GetParameterVector(optimizedParameters);
-	feLog("VFM: final parameter values (%zu)\n", optimizedParameters.size());
-	for (size_t i = 0; i < optimizedParameters.size(); ++i)
-	{
-		FEInputParameterVFM *param = m_opt.GetInputParameter(static_cast<int>(i));
-		std::string name = param ? param->GetName() : "";
-		if (name.empty())
-			name = "#" + std::to_string(i);
-		feLog("    %s = %.15g\n", name.c_str(), optimizedParameters[i]);
-	}
-
-	std::vector<double> finalResidual;
-	if (!m_opt.AssembleResidual(finalResidual))
-	{
-		return false;
-	}
-
-	const double finalNormSquared = std::inner_product(finalResidual.begin(), finalResidual.end(), finalResidual.begin(), 0.0);
-	const double finalCost = 0.5 * finalNormSquared;
-	feLog("VFM: final cost = %.15g (residual entries=%zu)\n", finalCost, finalResidual.size());
-
-	// LogStressDiagnostics(m_opt);
+	// RUN LM
 
 	if (!ExportState(m_inputFile.empty() ? nullptr : m_inputFile.c_str()))
 	{

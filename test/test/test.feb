@@ -41,11 +41,11 @@
 	<MeshDomains>
 		<SolidDomain name="Part1" mat="Material1"/>
 	</MeshDomains>
-	<Output>
+	<!-- <Output>
 		<plotfile type="febio">
 			<var type="displacement"/>
 			<var type="stress"/>
 			<var type="relative volume"/>
 		</plotfile>
-	</Output>
+	</Output> -->
 </febio_spec>

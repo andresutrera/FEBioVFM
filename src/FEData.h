@@ -274,34 +274,6 @@ public:
 
 	bool SetParameterVector(const std::vector<double> &values, std::string &errorMessage);
 	void GetParameterVector(std::vector<double> &values) const;
-	bool ResetParametersToInitial(std::string &errorMessage);
-	const std::vector<double> &InitialParameterVector() const { return m_initialParameters; }
-
-	bool RebuildStressHistories(std::string &errorMessage);
-	bool RebuildStressHistories(const std::vector<double> &parameterValues, bool restoreOriginalValues, std::string &errorMessage);
-
-	bool AssembleResidual(std::vector<double> &residual);
-	bool AssembleResidual(const std::vector<double> &parameterValues, bool restoreOriginalValues, std::vector<double> &residual, std::string &errorMessage);
-
-	/**
-	 * @brief Minimize the residual vector using the Levenberg-Marquardt solver with bound constraints.
-	 *
-	 * @param maxIterations Maximum number of LM iterations (values <= 0 select a reasonable default).
-	 * @param infoOut Optional pointer that receives the raw LM termination metrics (LM_INFO_SZ entries).
-	 * @param errorMessage Populated when the optimization fails.
-	 * @return true when the solver converged and the model parameters reflect the final solution.
-	 */
-	bool MinimizeResidualWithLevmar(int maxIterations, std::vector<double> *infoOut, std::string &errorMessage);
-
-	/**
-	 * @brief Solve the forward FE problem with a proposed parameter vector.
-	 * @param a Ordered list of parameter values sourced from the optimizer.
-	 *
-	 * @return Always returns false until the solver hook is implemented.
-	 * @note This is currently a stub that will eventually call into FEBio's
-	 * task infrastructure once the inversion loop is assembled.
-	 */
-	bool FESolve(const std::vector<double> &a);
 
 public:
 	/**
@@ -324,10 +296,6 @@ public:
 	FEInputParameterVFM *GetInputParameter(int n) { return m_Var[n]; }
 	const FEInputParameterVFM *GetInputParameter(int n) const { return m_Var[n]; }
 
-public:
-public:
-	int m_niter; ///< Number of minor iterations (i.e. FE solves) executed so far.
-
 protected:
 	FEModel *m_fem;												   ///< FEBio model associated with the optimization run.
 	std::vector<FEInputParameterVFM *> m_Var;					   ///< Registered optimization variables (non-owning).
@@ -341,9 +309,8 @@ protected:
 	FirstPiolaHistory m_firstPiolaHistory;						   ///< First Piola-Kirchhoff stress history.
 
 private:
-	bool RebuildStressHistoriesInternal(std::string &errorMessage);
-	bool AssembleResidualInternal(std::vector<double> &residual);
+	bool ComputeStress(std::string &errorMessage);
+	bool ComputeInternalWork(std::vector<double> &residual);
 
 private:
-	std::vector<double> m_initialParameters; ///< Parameter vector captured after initialization.
 };
