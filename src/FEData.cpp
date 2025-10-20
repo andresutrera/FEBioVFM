@@ -19,80 +19,80 @@
 namespace
 {
 
-double DoubleContraction(const mat3d& A, const mat3d& B)
-{
-	double s = 0.0;
-	for (int i = 0; i < 3; ++i)
+	double DoubleContraction(const mat3d &A, const mat3d &B)
 	{
-		for (int j = 0; j < 3; ++j)
+		double s = 0.0;
+		for (int i = 0; i < 3; ++i)
 		{
-			s += A[i][j] * B[i][j];
+			for (int j = 0; j < 3; ++j)
+			{
+				s += A[i][j] * B[i][j];
+			}
 		}
+		return s;
 	}
-	return s;
-}
 
-mat3d VirtualGradientFromDeformation(const mat3d& Fstar)
-{
-	mat3d G = Fstar;
-	G[0][0] -= 1.0;
-	G[1][1] -= 1.0;
-	G[2][2] -= 1.0;
-	return G;
-}
-
-struct LevmarResidualContext
-{
-	FEOptimizeDataVFM* optimizer = nullptr;
-	bool evaluationFailed = false;
-	std::string lastError;
-};
-
-void EvaluateResidualForLevmar(double* p, double* hx, int m, int n, void* adata)
-{
-	auto* context = static_cast<LevmarResidualContext*>(adata);
-	if ((hx == nullptr) || (n <= 0))
+	mat3d VirtualGradientFromDeformation(const mat3d &Fstar)
 	{
-		if (context)
+		mat3d G = Fstar;
+		G[0][0] -= 1.0;
+		G[1][1] -= 1.0;
+		G[2][2] -= 1.0;
+		return G;
+	}
+
+	struct LevmarResidualContext
+	{
+		FEOptimizeDataVFM *optimizer = nullptr;
+		bool evaluationFailed = false;
+		std::string lastError;
+	};
+
+	void EvaluateResidualForLevmar(double *p, double *hx, int m, int n, void *adata)
+	{
+		auto *context = static_cast<LevmarResidualContext *>(adata);
+		if ((hx == nullptr) || (n <= 0))
+		{
+			if (context)
+			{
+				context->evaluationFailed = true;
+				context->lastError = "Levmar requested an invalid residual buffer.";
+			}
+			return;
+		}
+
+		if ((context == nullptr) || (context->optimizer == nullptr))
+		{
+			if (context)
+			{
+				context->evaluationFailed = true;
+				context->lastError = "Levmar residual context is not configured.";
+			}
+			std::fill(hx, hx + n, 0.0);
+			return;
+		}
+
+		std::vector<double> parameters(p, p + m);
+		std::vector<double> residual;
+		std::string errorMessage;
+		if (!context->optimizer->AssembleResidual(parameters, false, residual, errorMessage))
 		{
 			context->evaluationFailed = true;
-			context->lastError = "Levmar requested an invalid residual buffer.";
+			context->lastError = errorMessage;
+			std::fill(hx, hx + n, 0.0);
+			return;
 		}
-		return;
-	}
 
-	if ((context == nullptr) || (context->optimizer == nullptr))
-	{
-		if (context)
+		if (static_cast<int>(residual.size()) != n)
 		{
 			context->evaluationFailed = true;
-			context->lastError = "Levmar residual context is not configured.";
+			context->lastError = "Residual size mismatch during levmar evaluation.";
+			std::fill(hx, hx + n, 0.0);
+			return;
 		}
-		std::fill(hx, hx + n, 0.0);
-		return;
-	}
 
-	std::vector<double> parameters(p, p + m);
-	std::vector<double> residual;
-	std::string errorMessage;
-	if (!context->optimizer->AssembleResidual(parameters, false, residual, errorMessage))
-	{
-		context->evaluationFailed = true;
-		context->lastError = errorMessage;
-		std::fill(hx, hx + n, 0.0);
-		return;
+		std::copy(residual.begin(), residual.end(), hx);
 	}
-
-	if (static_cast<int>(residual.size()) != n)
-	{
-		context->evaluationFailed = true;
-		context->lastError = "Residual size mismatch during levmar evaluation.";
-		std::fill(hx, hx + n, 0.0);
-		return;
-	}
-
-	std::copy(residual.begin(), residual.end(), hx);
-}
 
 } // namespace
 /**
@@ -102,7 +102,7 @@ void EvaluateResidualForLevmar(double* p, double* hx, int m, int n, void* adata)
  * @note The actual parameter lookup occurs inside Init() to ensure that the
  * model has fully parsed its input file before we attempt to resolve names.
  */
-FEModelParameterVFM::FEModelParameterVFM(FEModel* fem) : FEInputParameterVFM(fem)
+FEModelParameterVFM::FEModelParameterVFM(FEModel *fem) : FEInputParameterVFM(fem)
 {
 	m_pd = 0;
 }
@@ -120,7 +120,7 @@ FEModelParameterVFM::FEModelParameterVFM(FEModel* fem) : FEInputParameterVFM(fem
 bool FEModelParameterVFM::Init()
 {
 	// find the variable
-	FEModel& fem = *GetFEModel();
+	FEModel &fem = *GetFEModel();
 	string name = GetName();
 	FEParamValue val = fem.GetParameterValue(ParamString(name.c_str()));
 
@@ -135,7 +135,7 @@ bool FEModelParameterVFM::Init()
 	if (val.type() == FE_PARAM_DOUBLE)
 	{
 		// make sure we have a valid data pointer
-		double* pd = (double*)val.data_ptr();
+		double *pd = (double *)val.data_ptr();
 		if (pd == 0)
 		{
 			feLogError("Invalid data pointer for parameter %s", name.c_str());
@@ -154,7 +154,7 @@ bool FEModelParameterVFM::Init()
 	return true;
 }
 
-bool FEOptimizeDataVFM::MinimizeResidualWithLevmar(int maxIterations, std::vector<double>* infoOut, std::string& errorMessage)
+bool FEOptimizeDataVFM::MinimizeResidualWithLevmar(int maxIterations, std::vector<double> *infoOut, std::string &errorMessage)
 {
 	errorMessage.clear();
 
@@ -176,7 +176,7 @@ bool FEOptimizeDataVFM::MinimizeResidualWithLevmar(int maxIterations, std::vecto
 	}
 
 	std::vector<double> residual;
-	if (!AssembleResidual(residual, errorMessage))
+	if (!AssembleResidual(residual))
 	{
 		return false;
 	}
@@ -194,7 +194,7 @@ bool FEOptimizeDataVFM::MinimizeResidualWithLevmar(int maxIterations, std::vecto
 	std::vector<double> upperBounds(parameterCount);
 	for (int i = 0; i < parameterCount; ++i)
 	{
-		FEInputParameterVFM* parameter = m_Var[i];
+		FEInputParameterVFM *parameter = m_Var[i];
 		if (parameter == nullptr)
 		{
 			errorMessage = "Encountered an uninitialized parameter slot at index " + std::to_string(i) + ".";
@@ -207,53 +207,57 @@ bool FEOptimizeDataVFM::MinimizeResidualWithLevmar(int maxIterations, std::vecto
 		if (lowerBounds[i] > upperBounds[i])
 		{
 			std::string name = parameter->GetName();
-			if (name.empty()) name = "#" + std::to_string(i);
+			if (name.empty())
+				name = "#" + std::to_string(i);
 			errorMessage = "Parameter '" + name + "' has invalid bounds (min greater than max).";
 			return false;
 		}
 	}
 
-	if (maxIterations <= 0) maxIterations = 100;
+	if (maxIterations <= 0)
+		maxIterations = 100;
 
-	double opts[LM_OPTS_SZ] = { LM_INIT_MU, 1e-12, 1e-12, 1e-12, LM_DIFF_DELTA };
-	double info[LM_INFO_SZ] = { 0.0 };
+	double opts[LM_OPTS_SZ] = {LM_INIT_MU, 1e-12, 1e-12, 1e-12, LM_DIFF_DELTA};
+	double info[LM_INFO_SZ] = {0.0};
 
 	const size_t workspaceSize = static_cast<size_t>(LM_BC_DIF_WORKSZ(parameterCount, residualCount));
 	std::vector<double> workspace;
-	if (workspaceSize > 0) workspace.resize(workspaceSize, 0.0);
-	double* workPtr = workspace.empty() ? nullptr : workspace.data();
+	if (workspaceSize > 0)
+		workspace.resize(workspaceSize, 0.0);
+	double *workPtr = workspace.empty() ? nullptr : workspace.data();
 
 	LevmarResidualContext context;
 	context.optimizer = this;
 
 	const int iterations = dlevmar_bc_dif(EvaluateResidualForLevmar,
-		parameters.data(),
-		targets.data(),
-		parameterCount,
-		residualCount,
-		lowerBounds.data(),
-		upperBounds.data(),
-		nullptr,
-		maxIterations,
-		opts,
-		info,
-		workPtr,
-		nullptr,
-		&context);
+										  parameters.data(),
+										  targets.data(),
+										  parameterCount,
+										  residualCount,
+										  lowerBounds.data(),
+										  upperBounds.data(),
+										  nullptr,
+										  maxIterations,
+										  opts,
+										  info,
+										  workPtr,
+										  nullptr,
+										  &context);
 
 	if (infoOut)
 	{
 		infoOut->assign(info, info + LM_INFO_SZ);
 	}
 
-	auto restoreInitialState = [&](std::string& accumulator)
+	auto restoreInitialState = [&](std::string &accumulator)
 	{
 		std::string parameterError;
 		if (!SetParameterVector(initialParameters, parameterError))
 		{
 			if (!parameterError.empty())
 			{
-				if (!accumulator.empty()) accumulator += " ";
+				if (!accumulator.empty())
+					accumulator += " ";
 				accumulator += "Restore parameters: " + parameterError;
 			}
 			return;
@@ -264,7 +268,8 @@ bool FEOptimizeDataVFM::MinimizeResidualWithLevmar(int maxIterations, std::vecto
 		{
 			if (!stressError.empty())
 			{
-				if (!accumulator.empty()) accumulator += " ";
+				if (!accumulator.empty())
+					accumulator += " ";
 				accumulator += "Restore stresses: " + stressError;
 			}
 		}
@@ -319,7 +324,8 @@ bool FEOptimizeDataVFM::MinimizeResidualWithLevmar(int maxIterations, std::vecto
  */
 double FEModelParameterVFM::GetValue()
 {
-	if (m_pd) return *m_pd;
+	if (m_pd)
+		return *m_pd;
 	return 0;
 }
 
@@ -333,7 +339,8 @@ double FEModelParameterVFM::GetValue()
  */
 bool FEModelParameterVFM::SetValue(double newValue)
 {
-	if (m_pd == 0) return false;
+	if (m_pd == 0)
+		return false;
 	(*m_pd) = newValue;
 	return true;
 }
@@ -347,7 +354,7 @@ bool FEModelParameterVFM::SetValue(double newValue)
  * @note Several member pointers remain commented out to document the intended
  * design (solver, task, objective function) without introducing unused members.
  */
-FEOptimizeDataVFM::FEOptimizeDataVFM(FEModel* fem) : m_fem(fem)
+FEOptimizeDataVFM::FEOptimizeDataVFM(FEModel *fem) : m_fem(fem)
 {
 	// m_pSolver = 0;
 	// m_pTask = 0;
@@ -379,40 +386,26 @@ FEOptimizeDataVFM::~FEOptimizeDataVFM(void)
  */
 bool FEOptimizeDataVFM::Init()
 {
-	// allocate default optimization solver if none specified in input file
-	// if (m_pSolver == 0) m_pSolver = new FELMOptimizeMethod(GetFEModel());
-
-	// allocate default solver if none specified in input file
-	// if (m_pTask == 0) m_pTask = fecore_new<FECoreTask>("solve", m_fem);
-
-	// don't plot anything
+	// don't plot anything in the step
 	for (int i = 0; i < m_fem->Steps(); ++i)
 	{
 		m_fem->GetStep(i)->SetPlotLevel(FE_PLOT_NEVER);
 	}
 
-	// do the initialization of the task
-	GetFEModel()->BlockLog();
-	// if (m_pTask->Init(0) == false) return false;
-	GetFEModel()->UnBlockLog();
-
 	m_initialParameters.clear();
 	m_initialParameters.resize(m_Var.size(), 0.0);
 
 	// initialize all input parameters
-	for (int i=0; i<(int)m_Var.size(); ++i)
+	for (int i = 0; i < (int)m_Var.size(); ++i)
 	{
-		FEInputParameterVFM* p = m_Var[i];
-		if ((p==0) || (p->Init() == false)) return false;
+		FEInputParameterVFM *p = m_Var[i];
+		if ((p == 0) || (p->Init() == false))
+			return false;
 
 		// set the initial value
 		p->SetValue(p->InitValue());
 		m_initialParameters[i] = p->GetValue();
 	}
-
-	// initialize the objective function
-	// if (m_obj == 0) return false;
-	// if (m_obj->Init() == false) return false;
 
 	return true;
 }
@@ -438,7 +431,8 @@ bool FEOptimizeDataVFM::Solve()
 bool FEOptimizeDataVFM::Input(const char *szfile)
 {
 	FEVFMInput in;
-	if (in.Input(szfile, this) == false) return false;
+	if (in.Input(szfile, this) == false)
+		return false;
 	return true;
 }
 
@@ -456,12 +450,12 @@ bool FEOptimizeDataVFM::Input(const char *szfile)
  * @note The method is intentionally left as a stub because the forward solve is
  * tightly coupled to FEBio infrastructure that has not been integrated yet.
  */
-bool FEOptimizeDataVFM::FESolve(const vector<double>& a)
+bool FEOptimizeDataVFM::FESolve(const vector<double> &a)
 {
 	return false;
 }
 
-bool FEOptimizeDataVFM::SetParameterVector(const std::vector<double>& values, std::string& errorMessage)
+bool FEOptimizeDataVFM::SetParameterVector(const std::vector<double> &values, std::string &errorMessage)
 {
 	if (values.size() != m_Var.size())
 	{
@@ -471,7 +465,7 @@ bool FEOptimizeDataVFM::SetParameterVector(const std::vector<double>& values, st
 
 	for (size_t i = 0; i < m_Var.size(); ++i)
 	{
-		FEInputParameterVFM* param = m_Var[i];
+		FEInputParameterVFM *param = m_Var[i];
 		if (param == nullptr)
 		{
 			errorMessage = "Encountered an uninitialized parameter slot at index " + std::to_string(i) + ".";
@@ -488,17 +482,17 @@ bool FEOptimizeDataVFM::SetParameterVector(const std::vector<double>& values, st
 	return true;
 }
 
-void FEOptimizeDataVFM::GetParameterVector(std::vector<double>& values) const
+void FEOptimizeDataVFM::GetParameterVector(std::vector<double> &values) const
 {
 	values.resize(m_Var.size());
 	for (size_t i = 0; i < m_Var.size(); ++i)
 	{
-		FEInputParameterVFM* param = m_Var[i];
+		FEInputParameterVFM *param = m_Var[i];
 		values[i] = (param ? param->GetValue() : 0.0);
 	}
 }
 
-bool FEOptimizeDataVFM::ResetParametersToInitial(std::string& errorMessage)
+bool FEOptimizeDataVFM::ResetParametersToInitial(std::string &errorMessage)
 {
 	if (m_initialParameters.size() != m_Var.size())
 	{
@@ -508,14 +502,14 @@ bool FEOptimizeDataVFM::ResetParametersToInitial(std::string& errorMessage)
 	return SetParameterVector(m_initialParameters, errorMessage);
 }
 
-bool FEOptimizeDataVFM::RebuildStressHistories(std::string& errorMessage)
+bool FEOptimizeDataVFM::RebuildStressHistories(std::string &errorMessage)
 {
 	return RebuildStressHistoriesInternal(errorMessage);
 }
 
-bool FEOptimizeDataVFM::RebuildStressHistories(const std::vector<double>& parameterValues,
-	bool restoreOriginalValues,
-	std::string& errorMessage)
+bool FEOptimizeDataVFM::RebuildStressHistories(const std::vector<double> &parameterValues,
+											   bool restoreOriginalValues,
+											   std::string &errorMessage)
 {
 	std::vector<double> originalValues;
 	if (restoreOriginalValues)
@@ -551,36 +545,37 @@ bool FEOptimizeDataVFM::RebuildStressHistories(const std::vector<double>& parame
 	return result;
 }
 
-bool FEOptimizeDataVFM::RebuildStressHistoriesInternal(std::string& errorMessage)
+bool FEOptimizeDataVFM::RebuildStressHistoriesInternal(std::string &errorMessage)
 {
-	auto& defHistory = DeformationHistory();
-	auto& stressHistory = StressTimeline();
-	auto& piolaHistory = FirstPiolaTimeline();
+	auto &defHistory = DeformationHistory();
+	auto &stressHistory = StressTimeline();
+	auto &piolaHistory = FirstPiolaTimeline();
 
 	stressHistory.Clear();
 	stressHistory.Reserve(defHistory.Steps());
 	piolaHistory.Clear();
 	piolaHistory.Reserve(defHistory.Steps());
 
-	if (defHistory.Empty()) return true;
+	if (defHistory.Empty())
+		return true;
 
-	for (const auto& defStep : defHistory)
+	for (const auto &defStep : defHistory)
 	{
-		auto& stressStep = stressHistory.AddStep(defStep.time);
-		auto& piolaStep = piolaHistory.AddStep(defStep.time);
+		auto &stressStep = stressHistory.AddStep(defStep.time);
+		auto &piolaStep = piolaHistory.AddStep(defStep.time);
 
 		if (!VFMStress::ComputeCauchyStress(*GetFEModel(),
-			defStep.field,
-			stressStep.field,
-			errorMessage))
+											defStep.field,
+											stressStep.field,
+											errorMessage))
 		{
 			return false;
 		}
 
 		if (!VFMStress::ComputeFirstPiolaStress(defStep.field,
-			stressStep.field,
-			piolaStep.field,
-			errorMessage))
+												stressStep.field,
+												piolaStep.field,
+												errorMessage))
 		{
 			return false;
 		}
@@ -589,15 +584,15 @@ bool FEOptimizeDataVFM::RebuildStressHistoriesInternal(std::string& errorMessage
 	return true;
 }
 
-bool FEOptimizeDataVFM::AssembleResidual(std::vector<double>& residual, std::string& errorMessage)
+bool FEOptimizeDataVFM::AssembleResidual(std::vector<double> &residual)
 {
-	return AssembleResidualInternal(residual, errorMessage);
+	return AssembleResidualInternal(residual);
 }
 
-bool FEOptimizeDataVFM::AssembleResidual(const std::vector<double>& parameterValues,
-	bool restoreOriginalValues,
-	std::vector<double>& residual,
-	std::string& errorMessage)
+bool FEOptimizeDataVFM::AssembleResidual(const std::vector<double> &parameterValues,
+										 bool restoreOriginalValues,
+										 std::vector<double> &residual,
+										 std::string &errorMessage)
 {
 	std::vector<double> originalValues;
 	if (restoreOriginalValues)
@@ -638,7 +633,7 @@ bool FEOptimizeDataVFM::AssembleResidual(const std::vector<double>& parameterVal
 		}
 	}
 
-	const bool assembled = AssembleResidualInternal(residual, errorMessage);
+	const bool assembled = AssembleResidualInternal(residual);
 
 	if (restoreOriginalValues)
 	{
@@ -658,7 +653,7 @@ bool FEOptimizeDataVFM::AssembleResidual(const std::vector<double>& parameterVal
 	return assembled;
 }
 
-bool FEOptimizeDataVFM::AssembleResidualInternal(std::vector<double>& residual, std::string& errorMessage)
+bool FEOptimizeDataVFM::AssembleResidualInternal(std::vector<double> &residual)
 {
 	const size_t fieldCount = m_virtualDefGradients.Size();
 	const size_t timeCount = FirstPiolaTimeline().Steps();
@@ -671,40 +666,26 @@ bool FEOptimizeDataVFM::AssembleResidualInternal(std::vector<double>& residual, 
 		return true;
 	}
 
-	if (m_virtualExternalWork.size() != fieldCount)
-	{
-		errorMessage = "Virtual external work history count does not match the number of virtual fields.";
-		return false;
-	}
-
-	for (size_t i = 0; i < fieldCount; ++i)
-	{
-		if (m_virtualExternalWork[i].work.size() < timeCount)
-		{
-			errorMessage = "Virtual external work history for field index " + std::to_string(i) + " is shorter than the stress timeline.";
-			return false;
-		}
-	}
-
-	FEMesh& mesh = GetFEModel()->GetMesh();
+	FEMesh &mesh = GetFEModel()->GetMesh();
 	std::unordered_map<int, std::vector<double>> integrationWeights;
 
 	const int domainCount = mesh.Domains();
 	for (int domIdx = 0; domIdx < domainCount; ++domIdx)
 	{
-		FEDomain& domain = mesh.Domain(domIdx);
-		auto* solidDomain = dynamic_cast<FESolidDomain*>(&domain);
-		if (solidDomain == nullptr) continue;
+		FEDomain &domain = mesh.Domain(domIdx);
+		auto *solidDomain = dynamic_cast<FESolidDomain *>(&domain);
+		if (solidDomain == nullptr)
+			continue;
 
 		const int elemCount = solidDomain->Elements();
 		for (int elemIdx = 0; elemIdx < elemCount; ++elemIdx)
 		{
-			FESolidElement& el = static_cast<FESolidElement&>(solidDomain->ElementRef(elemIdx));
+			FESolidElement &el = static_cast<FESolidElement &>(solidDomain->ElementRef(elemIdx));
 			const int elemId = el.GetID();
 			const int nint = el.GaussPoints();
 
 			std::vector<double> weights(nint, 0.0);
-			double* gw = el.GaussWeights();
+			double *gw = el.GaussWeights();
 			for (int n = 0; n < nint; ++n)
 			{
 				const double gaussWeight = (gw ? gw[n] : 1.0);
@@ -719,38 +700,29 @@ bool FEOptimizeDataVFM::AssembleResidualInternal(std::vector<double>& residual, 
 	const double timeTolerance = 1e-12;
 	for (size_t fieldIdx = 0; fieldIdx < fieldCount; ++fieldIdx)
 	{
-		const auto& virtualField = m_virtualDefGradients[fieldIdx];
-		const auto& externalWork = m_virtualExternalWork[fieldIdx].work;
+		const auto &virtualField = m_virtualDefGradients[fieldIdx];
+		const auto &externalWork = m_virtualExternalWork[fieldIdx].work;
 
 		for (size_t timeIdx = 0; timeIdx < timeCount; ++timeIdx)
 		{
-			const FirstPiolaHistory::TimeStep& piolaStep = m_firstPiolaHistory[timeIdx];
-			const DeformationGradientHistory::TimeStep* virtualStep = virtualField.history.FindStepByTime(piolaStep.time, timeTolerance);
+			const FirstPiolaHistory::TimeStep &piolaStep = m_firstPiolaHistory[timeIdx];
+			const DeformationGradientHistory::TimeStep *virtualStep = virtualField.history.FindStepByTime(piolaStep.time, timeTolerance);
 
 			double internalVirtualWork = 0.0;
-			for (const GaussPointFirstPiola& gpPiola : piolaStep.field.Data())
+			for (const GaussPointFirstPiola &gpPiola : piolaStep.field.Data())
 			{
 				auto weightIt = integrationWeights.find(gpPiola.elementId);
-				if (weightIt == integrationWeights.end())
-				{
-					errorMessage = "Missing integration weights for element " + std::to_string(gpPiola.elementId) + ".";
-					return false;
-				}
 
-				const std::vector<double>& weights = weightIt->second;
-				const GaussPointDeformation* gpVirtual = (virtualStep ? virtualStep->field.Find(gpPiola.elementId) : nullptr);
+				const std::vector<double> &weights = weightIt->second;
+				const GaussPointDeformation *gpVirtual = (virtualStep ? virtualStep->field.Find(gpPiola.elementId) : nullptr);
 
 				const size_t gaussCount = gpPiola.stresses.size();
-				if (weights.size() < gaussCount)
-				{
-					errorMessage = "Integration weight count mismatch for element " + std::to_string(gpPiola.elementId) + ".";
-					return false;
-				}
 
 				for (size_t n = 0; n < gaussCount; ++n)
 				{
-					const mat3d& P = gpPiola.stresses[n];
-					mat3d G; G.zero();
+					const mat3d &P = gpPiola.stresses[n];
+					mat3d G;
+					G.zero();
 					if (gpVirtual && n < gpVirtual->gradients.size())
 					{
 						G = VirtualGradientFromDeformation(gpVirtual->gradients[n]);
