@@ -30,7 +30,6 @@ struct VFMState
     VirtualFields virtuals; // u_v(v,t,i)
     MeasuredLoad loads;     // surface loads per time slice
 
-    // ------------- derived tensors ----------
     Deformations def;         // F(t,e,g)
     VirtualDeformations vdef; // F_v(v,t,e,g)
     Stresses stresses;        // σ,P(t,e,g) (optional for later)
@@ -60,19 +59,5 @@ struct VFMState
         for (VFIdx v = 0; v < (VFIdx)virtuals.nVF(); ++v)
             for (std::size_t k = 0; k < virtuals.getVF(v).nTimes(); ++k)
                 (void)vdef.addTime(v);
-    }
-
-    std::vector<double> pack_theta() const
-    {
-        std::vector<double> t;
-        t.reserve(params.size());
-        for (const auto &q : params)
-            t.push_back((q.value - q.spec.init) / q.spec.scale);
-        return t;
-    }
-    void unpack_theta(const std::vector<double> &t)
-    {
-        for (size_t i = 0; i < params.size(); ++i)
-            params[i].value = params[i].spec.init + params[i].spec.scale * t[i];
     }
 };
