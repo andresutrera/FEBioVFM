@@ -20,6 +20,15 @@
         ]
     },
     "settings": {
+        // ---------------- C/C++ (defaults for this workspace) ----------------
+        "C_Cpp.default.includePath": [
+            "${workspaceFolder}/src/**",
+            "/home/autrera/FEBioStudio/sdk/include"
+        ],
+        "C_Cpp.default.compilerPath": "/usr/bin/gcc",
+        "C_Cpp.default.cStandard": "c17",
+        "C_Cpp.default.cppStandard": "gnu++17",
+        "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
         "workbench.startupEditor": "none", // prevent welcome page
         "cSpell.enabled": true,
         // -------------------------
@@ -159,6 +168,6 @@
             "typeinfo": "cpp",
             "variant": "cpp",
             "cstring": "cpp"
-        }
+        },
     }
 }
