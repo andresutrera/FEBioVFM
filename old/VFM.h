@@ -17,14 +17,14 @@
  * @note Documentation intentionally calls out the placeholders so the generated
  * Doxygen pages help stakeholders understand the roadmap.
  */
-class FEVFMTask : public FECoreTask
+class VFMTask : public FECoreTask
 {
 public:
     /**
      * @brief Create a task instance bound to the supplied FEBio model.
      * @param fem FEBio model provided by the hosting FEBio application.
      */
-    explicit FEVFMTask(FEModel *fem);
+    explicit VFMTask(FEModel *fem);
 
     /**
      * @brief Initialize the task from the command line argument supplied to FEBio.

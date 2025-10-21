@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.1.0)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
+message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
 project(FEBIOPlugins)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -259,11 +259,12 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
 endif()
 
 include_directories(${FEBio_INC})
+include_directories(${CMAKE_SOURCE_DIR}/src) # expose project headers like io/* relative to src
 message(STATUS "INCLUDESSSS::::::: ${FEBio_INC}.")
 ##### Add library #####
 
-file(GLOB HDR CONFIGURE_DEPENDS "src/*.h")
-file(GLOB SRC CONFIGURE_DEPENDS "src/*.cpp")
+file(GLOB_RECURSE HDR CONFIGURE_DEPENDS "src/*.h" "src/*.hpp")
+file(GLOB_RECURSE SRC CONFIGURE_DEPENDS "src/*.cpp")
 
 add_library(${name} SHARED ${HDR} ${SRC})
 set_property(TARGET ${name} PROPERTY AUTOGEN_BUILD_DIR ${CMAKE_BINARY_DIR}/CMakeFiles/AutoGen/${name}_autogen)
