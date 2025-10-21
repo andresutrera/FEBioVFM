@@ -9,71 +9,58 @@
 #include <FECore/log.h>
 #include <utility>
 #include "levmar/levmar.h"
+#include "diag/felog_bridge.hpp"
+#include "diag/printers/param_table.hpp"
 
 namespace
 {
-struct ProblemLogger
-{
-    explicit ProblemLogger(FEModel &model) : fem(&model) {}
-    FEModel *GetFEModel() const { return fem; }
-
-    template <typename... Args>
-    void info(const char *fmt, Args &&...args) const
+    struct LevmarContext
     {
-        feLog(fmt, std::forward<Args>(args)...);
-    }
+        InternalWorkAssembler *internal = nullptr;
+        std::string *err = nullptr;
+        bool failed = false;
+    };
 
-private:
-    FEModel *fem = nullptr;
-};
-
-struct LevmarContext
-{
-    InternalWorkAssembler *internal = nullptr;
-    std::string *err = nullptr;
-    bool failed = false;
-};
-
-void lm_internal_eval(double *p, double *hx, int m, int n, void *adata)
-{
-    auto *ctx = static_cast<LevmarContext *>(adata);
-    if (!ctx || !ctx->internal)
+    void lm_internal_eval(double *p, double *hx, int m, int n, void *adata)
     {
-        for (int i = 0; i < n; ++i)
-            hx[i] = 0.0;
-        if (ctx && ctx->err)
-            *ctx->err = "invalid levmar context";
-        if (ctx)
+        auto *ctx = static_cast<LevmarContext *>(adata);
+        if (!ctx || !ctx->internal)
+        {
+            for (int i = 0; i < n; ++i)
+                hx[i] = 0.0;
+            if (ctx && ctx->err)
+                *ctx->err = "invalid levmar context";
+            if (ctx)
+                ctx->failed = true;
+            return;
+        }
+
+        if (ctx->failed)
+        {
+            for (int i = 0; i < n; ++i)
+                hx[i] = 0.0;
+            return;
+        }
+
+        std::vector<double> params(p, p + m);
+        std::string localErr;
+        std::vector<double> iw = (*ctx->internal)(params, localErr);
+        if (iw.size() != static_cast<std::size_t>(n))
+        {
+            if (ctx->err)
+                *ctx->err = localErr.empty() ? "internal work dimension mismatch" : localErr;
             ctx->failed = true;
-        return;
-    }
+            for (int i = 0; i < n; ++i)
+                hx[i] = 0.0;
+            return;
+        }
 
-    if (ctx->failed)
-    {
+        if (!localErr.empty() && ctx->err)
+            *ctx->err = localErr;
+
         for (int i = 0; i < n; ++i)
-            hx[i] = 0.0;
-        return;
+            hx[i] = iw[static_cast<std::size_t>(i)];
     }
-
-    std::vector<double> params(p, p + m);
-    std::string localErr;
-    std::vector<double> iw = (*ctx->internal)(params, localErr);
-    if (iw.size() != static_cast<std::size_t>(n))
-    {
-        if (ctx->err)
-            *ctx->err = localErr.empty() ? "internal work dimension mismatch" : localErr;
-        ctx->failed = true;
-        for (int i = 0; i < n; ++i)
-            hx[i] = 0.0;
-        return;
-    }
-
-    if (!localErr.empty() && ctx->err)
-        *ctx->err = localErr;
-
-    for (int i = 0; i < n; ++i)
-        hx[i] = iw[static_cast<std::size_t>(i)];
-}
 } // namespace
 
 bool run_vfm_levmar(std::vector<double> &params,
@@ -127,6 +114,7 @@ bool solve_vfm_problem(VFMProblem &problem,
                        int itmax,
                        std::string &err)
 {
+    diag::ScopedFEBind bind(problem.fem);
     err.clear();
     if (problem.fem == nullptr)
     {
@@ -134,11 +122,9 @@ bool solve_vfm_problem(VFMProblem &problem,
         return false;
     }
 
-    ProblemLogger logger(*problem.fem);
-
     if (problem.state.params.empty())
     {
-        logger.info("No parameters to optimize.\n");
+        feLog("No parameters to optimize.\n");
         return true;
     }
 
@@ -146,17 +132,20 @@ bool solve_vfm_problem(VFMProblem &problem,
     FEBioParameterApplier paramApplier(fem, problem.state);
     FEBioMaterialProvider mat(problem.conn);
 
-    auto paramSetter = [&](const std::vector<double> &values, std::string &perr) -> bool {
+    auto paramSetter = [&](const std::vector<double> &values, std::string &perr) -> bool
+    {
         return paramApplier.apply(values, perr);
     };
 
-    auto computeStress = [&](std::string &perr) -> bool {
+    auto computeStress = [&](std::string &perr) -> bool
+    {
         if (!StressEval::cauchy(problem.state.def, problem.state.stresses, mat, perr))
             return false;
         return StressEval::first_piola(problem.state.def, problem.state.stresses, problem.state.stresses, perr);
     };
 
-    auto toVirtGrad = [](const mat3d &Fstar) {
+    auto toVirtGrad = [](const mat3d &Fstar)
+    {
         mat3d G = Fstar;
         G[0][0] -= 1.0;
         G[1][1] -= 1.0;
@@ -177,7 +166,7 @@ bool solve_vfm_problem(VFMProblem &problem,
         return false;
     if (ew.empty())
     {
-        logger.info("External work vector empty. Nothing to optimize.\n");
+        feLog("External work vector empty. Nothing to optimize.\n");
         return true;
     }
 
@@ -197,10 +186,8 @@ bool solve_vfm_problem(VFMProblem &problem,
     if (!computeStress(err))
         return false;
 
-    logger.info("Optimized parameters:\n");
-    for (const auto &q : problem.state.params)
-        logger.info("  %s = %.6g\n", q.spec.name.c_str(), q.value);
+    feLog("");
+    diag::printers::ParameterTable(problem.state.params, "FINAL PARAMETERS", 6);
 
-    logger.info("Optimization complete.\n");
     return true;
 }

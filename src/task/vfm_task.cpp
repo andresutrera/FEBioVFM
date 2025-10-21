@@ -2,13 +2,14 @@
 #include <FECore/log.h>
 #include "optimization/vfm_solver.hpp"
 #include "diag/felog_bridge.hpp"
+#include "diag/printers/param_table.hpp"
 
 VFMTask::VFMTask(FEModel *fem) : FECoreTask(fem) {}
 
 bool VFMTask::Init(const char *xmlPath)
 {
     m_inputPath = (xmlPath && *xmlPath) ? xmlPath : std::string{};
-    diag::set_current_fem(FECoreTask::GetFEModel());
+    diag::ScopedFEBind bind(GetFEModel());
     feLog("\n");
     feLog("===========================================================================\n");
     feLog("                        VIRTUAL FIELDS METHOD (VFM)                        \n");
@@ -35,6 +36,10 @@ bool VFMTask::Init(const char *xmlPath)
     }
 
     feLog("Problem initialization complete.\n");
+
+    feLog("");
+    diag::printers::ParameterTable(m_problem.state.params, "INITIAL PARAMETERS", 6);
+
     return true;
 }
 
@@ -60,5 +65,6 @@ bool VFMTask::Run()
             feLogError("VFM solver failed.");
         return false;
     }
+
     return true;
 }
