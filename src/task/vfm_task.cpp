@@ -1,8 +1,10 @@
 #include "vfm_task.h"
 #include <FECore/log.h>
 #include "optimization/vfm_solver.hpp"
+#include "io/exporter.hpp"
 #include "diag/felog_bridge.hpp"
 #include "diag/printers/param_table.hpp"
+#include <filesystem>
 
 VFMTask::VFMTask(FEModel *fem) : FECoreTask(fem) {}
 
@@ -66,5 +68,22 @@ bool VFMTask::Run()
         return false;
     }
 
+    std::filesystem::path outPath;
+    if (!m_inputPath.empty())
+        outPath = std::filesystem::path(m_inputPath).replace_extension(".xplt");
+    else
+        outPath = std::filesystem::path("vfm_results.xplt");
+
+    std::string exportErr;
+    if (!export_vfm_results(m_problem, outPath.string(), exportErr))
+    {
+        if (!exportErr.empty())
+            feLogError(exportErr.c_str());
+        else
+            feLogError("Failed to export VFM results.");
+        return false;
+    }
+
+    feLog("Exported results to %s\n", outPath.string().c_str());
     return true;
 }
