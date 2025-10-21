@@ -65,11 +65,10 @@
 		</Constants>
 	</Globals>
 	<Material>
-		<material id="1" name="Material1" type="incomp neo-Hookean">
+		<material id="1" name="Material1" type="neo-Hookean">
 			<density>1</density>
-			<k>10</k>
-			<pressure_model>default</pressure_model>
-			<G>0.01</G>
+			<E>0.03</E>
+			<v>0.495</v>
 		</material>
 	</Material>
 	<Mesh>

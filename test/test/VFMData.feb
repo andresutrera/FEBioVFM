@@ -118,10 +118,10 @@
         <node id='2'>1,0,0</node>
         <node id='3'>1,1,0</node>
         <node id='4'>0,1,0</node>
-        <node id='5'>0,0,-0.75</node>
-        <node id='6'>1,0,-0.75</node>
-        <node id='7'>1,1,-0.75</node>
-        <node id='8'>0,1,-0.75</node>
+        <node id='5'>0,0,-0.749344</node>
+        <node id='6'>1,0,-0.749344</node>
+        <node id='7'>1,1,-0.749344</node>
+        <node id='8'>0,1,-0.749344</node>
       </time>
   </MeasuredDisplacements>
   <VirtualDisplacements>
