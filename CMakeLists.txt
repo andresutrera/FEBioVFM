@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.1.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
-project(FEBIOPlugins)
+project(FEBIOPlugins LANGUAGES CXX)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_FILES_DIRECTORY ${CMAKE_BINARY_DIR}/CMakeFiles)
@@ -16,10 +15,9 @@ endif()
 
 
 # Set a default build type if none was specified
-set(default_build_type "Debug")
+set(default_build_type "Release")
  
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
   set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
       STRING "Choose the type of build." FORCE)
   # Set the possible values of build type for cmake-gui
@@ -169,15 +167,12 @@ endfunction()
 set(MKL_LIB_DIR "/opt/intel/oneapi/mkl/latest/lib")
 set(MKL_OMP_LIB "/opt/intel/oneapi/compiler/latest/lib/libiomp5.so")
 if(1)
-    message(STATUS "Finding MKL.......")
     set(MKL_LIB_NAMES mkl_intel_lp64 mkl_core mkl_intel_thread)
     foreach(namelib IN LISTS MKL_LIB_NAMES)
-        message(STATUS "Finding MKL lib: ${namelib}")
         findLib2(${namelib} MKL_LIB_DIR MKL_LIB)
         list(APPEND MKL_LIBS ${MKL_LIB})
-        unset(MMG_LIB)
+        unset(MKL_LIB)
     endforeach(namelib)
-    message(STATUS "Found MKL: ${MKL_LIB}")
     
     if(NOT EXISTS ${MKL_OMP_LIB})
         message(SEND_ERROR "Could not find MKL OMP library. Check MKL_OMP_LIB.")
@@ -218,7 +213,6 @@ else()
     endforeach(name)
 
     unset(FEBio_LIB_NAMES)
-    message(STATUS "LIBRARIES::::::: ${FEBio_LIBS}.")
 endif()
 
 
@@ -258,9 +252,6 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
 	set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} -static-intel)
 endif()
 
-include_directories(${FEBio_INC})
-include_directories(${CMAKE_SOURCE_DIR}/src) # expose project headers like io/* relative to src
-message(STATUS "INCLUDESSSS::::::: ${FEBio_INC}.")
 ##### Add library #####
 
 file(GLOB_RECURSE HDR CONFIGURE_DEPENDS "src/*.h" "src/*.hpp")
@@ -268,6 +259,7 @@ file(GLOB_RECURSE SRC CONFIGURE_DEPENDS "src/*.cpp")
 
 add_library(${name} SHARED ${HDR} ${SRC})
 set_property(TARGET ${name} PROPERTY AUTOGEN_BUILD_DIR ${CMAKE_BINARY_DIR}/CMakeFiles/AutoGen/${name}_autogen)
+target_include_directories(${name} PRIVATE ${FEBio_INC} ${CMAKE_SOURCE_DIR}/src)
 
 ##### Link Libraries #####
 
