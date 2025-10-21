@@ -1,21 +1,17 @@
 #pragma once
 #include <vector>
 #include <string>
-#include <algorithm>
-#include <FECore/FEModel.h>
 #include <FECore/vec3d.h>
-#include "build/mesh_info.hpp"
 #include "build/surface_info.hpp"
 #include "domain/vfm_displacements.hpp"
 
 class ExternalVirtualWorkAssembler
 {
 public:
-    ExternalVirtualWorkAssembler(FEModel &fem,
-                                 const MeshDims &dims,
+    ExternalVirtualWorkAssembler(const SurfaceMap &surfaces,
                                  const VirtualFields &virtuals,
                                  const MeasuredLoad &loads)
-        : m_fem(fem), m_dims(dims), m_virtuals(virtuals), m_loads(loads) {}
+        : m_surfaces(surfaces), m_virtuals(virtuals), m_loads(loads) {}
 
     // Returns flattened EW vector W[vf, t]
     std::vector<double> operator()(std::string &err)
@@ -26,24 +22,6 @@ public:
         const std::size_t T = m_loads.nTimes();
         if (VF == 0 || T == 0)
             return {};
-
-        std::vector<std::string> surfaceNames;
-        for (std::size_t t = 0; t < T; ++t)
-        {
-            const LoadFrame &frame = m_loads.frame(static_cast<TimeIdx>(t));
-            for (const auto &entry : frame.loads)
-            {
-                if (std::find(surfaceNames.begin(), surfaceNames.end(), entry.surface) == surfaceNames.end())
-                    surfaceNames.push_back(entry.surface);
-            }
-        }
-
-        SurfaceMap surfaces;
-        if (!surfaceNames.empty())
-        {
-            if (!build_surface_info(m_fem.GetMesh(), m_dims, surfaceNames, surfaces, err))
-                return {};
-        }
 
         std::vector<double> W(VF * T, 0.0);
 
@@ -64,8 +42,8 @@ public:
 
                 for (const auto &entry : frame.loads)
                 {
-                    auto it = surfaces.find(entry.surface);
-                    if (it == surfaces.end())
+                    auto it = m_surfaces.find(entry.surface);
+                    if (it == m_surfaces.end())
                     {
                         err = "missing surface mapping for " + entry.surface;
                         return {};
@@ -103,8 +81,7 @@ public:
     }
 
 private:
-    FEModel &m_fem;
-    const MeshDims &m_dims;
+    const SurfaceMap &m_surfaces;
     const VirtualFields &m_virtuals;
     const MeasuredLoad &m_loads;
 };

@@ -3,6 +3,7 @@
 #include <string>
 
 class InternalWorkAssembler;
+struct VFMProblem;
 
 // Runs a simple Levenberg–Marquardt fit that minimizes
 // ‖InternalWork(params) - externalWork‖_2.
@@ -13,3 +14,7 @@ bool run_vfm_levmar(std::vector<double>& params,
                     const std::vector<double>& externalWork,
                     int itmax,
                     std::string& err);
+
+bool solve_vfm_problem(VFMProblem& problem,
+                       int itmax,
+                       std::string& err);
