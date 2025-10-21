@@ -3,13 +3,14 @@
 #include <vector>
 #include <cstddef>
 #include <cassert>
+#include <string>
 #include <FECore/vec3d.h>
 #include "domain/vfm_core_series.hpp"
 
 // --- Index aliases kept small and POD-only ---
 using NodeIdx = std::size_t; // node index in [0..nNodes)
 using TimeIdx = int;         // time/frame index in [0..nTimes)
-using VFIdx   = int;         // virtual-field index in [0..nVF)
+using VFIdx = int;           // virtual-field index in [0..nVF)
 
 // ============================================================================
 // NodalField<T>
@@ -21,22 +22,35 @@ using VFIdx   = int;         // virtual-field index in [0..nVF)
 //   No implicit allocation on access; caller controls size explicitly.
 // ============================================================================
 template <typename T>
-class NodalField {
+class NodalField
+{
 public:
     NodalField() = default;
 
     // ---- shape / size ----
-    void         resizeNodes(std::size_t n) { _d.resize(n); }
-    std::size_t  size() const               { return _d.size(); }
+    void resizeNodes(std::size_t n) { _d.resize(n); }
+    std::size_t size() const { return _d.size(); }
 
     // ---- accessors ----
-    T&           getNode(NodeIdx i)         { assert(i < _d.size()); return _d[i]; }
-    const T&     getNode(NodeIdx i) const   { assert(i < _d.size()); return _d[i]; }
-    void         setNode(NodeIdx i, const T& v){ assert(i < _d.size()); _d[i] = v; }
+    T &getNode(NodeIdx i)
+    {
+        assert(i < _d.size());
+        return _d[i];
+    }
+    const T &getNode(NodeIdx i) const
+    {
+        assert(i < _d.size());
+        return _d[i];
+    }
+    void setNode(NodeIdx i, const T &v)
+    {
+        assert(i < _d.size());
+        _d[i] = v;
+    }
 
     // ---- bulk ----
-    T*           raw()                      { return _d.data(); }
-    const T*     raw() const                { return _d.data(); }
+    T *raw() { return _d.data(); }
+    const T *raw() const { return _d.data(); }
 
 private:
     std::vector<T> _d;
@@ -48,19 +62,27 @@ private:
 // VirtualFrame   : virtual-field nodal displacements u^v_i(t)
 // LoadFrame      : measured nodal forces F_i(t)
 // ============================================================================
-struct MeasuredFrame {
+struct MeasuredFrame
+{
     NodalField<vec3d> u;
     void setNodalSize(std::size_t n) { u.resizeNodes(n); }
 };
 
-struct VirtualFrame {
+struct VirtualFrame
+{
     NodalField<vec3d> u;
     void setNodalSize(std::size_t n) { u.resizeNodes(n); }
 };
 
-struct LoadFrame {
-    NodalField<vec3d> F;
-    void setNodalSize(std::size_t n) { F.resizeNodes(n); }
+struct LoadFrame
+{
+    double time = 0.0;
+    struct SurfaceForce
+    {
+        std::string surface;
+        vec3d force;
+    };
+    std::vector<SurfaceForce> loads;
 };
 
 // ============================================================================
@@ -71,22 +93,30 @@ struct LoadFrame {
 // API:
 //   setNodalSize(n), addTime(), setU/refU/crefU.
 // ============================================================================
-class MeasuredData {
+class MeasuredData
+{
 public:
     // ---- shape cache for all frames ----
-    void setNodalSize(std::size_t nNodes) { _nNodes=nNodes; _nodalReady=true; _applyNodalToAll(); }
+    void setNodalSize(std::size_t nNodes)
+    {
+        _nNodes = nNodes;
+        _nodalReady = true;
+        _applyNodalToAll();
+    }
 
     // ---- time management ----
-    TimeIdx addTime() {
+    TimeIdx addTime()
+    {
         auto t = series.addTime();
-        if (_nodalReady) series.getTime(t).setNodalSize(_nNodes);
+        if (_nodalReady)
+            series.getTime(t).setNodalSize(_nNodes);
         return t;
     }
 
     // ---- accessors ----
-    void        setU (TimeIdx t, NodeIdx i, const vec3d& v) { series.getTime(t).u.setNode(i, v); }
-    vec3d&      refU (TimeIdx t, NodeIdx i)                 { return series.getTime(t).u.getNode(i); }
-    const vec3d&crefU(TimeIdx t, NodeIdx i) const           { return series.getTime(t).u.getNode(i); }
+    void setU(TimeIdx t, NodeIdx i, const vec3d &v) { series.getTime(t).u.setNode(i, v); }
+    vec3d &refU(TimeIdx t, NodeIdx i) { return series.getTime(t).u.getNode(i); }
+    const vec3d &crefU(TimeIdx t, NodeIdx i) const { return series.getTime(t).u.getNode(i); }
 
     // ---- sizes ----
     std::size_t nTimes() const { return series.nTimes(); }
@@ -94,43 +124,44 @@ public:
     TimeSeries<MeasuredFrame> series; // exposed for iteration when needed
 
 private:
-    void _applyNodalToAll() {
-        for (std::size_t k=0; k<series.nTimes(); ++k) series.getTime((TimeIdx)k).setNodalSize(_nNodes);
+    void _applyNodalToAll()
+    {
+        for (std::size_t k = 0; k < series.nTimes(); ++k)
+            series.getTime((TimeIdx)k).setNodalSize(_nNodes);
     }
-    std::size_t _nNodes=0;
-    bool _nodalReady=false;
+    std::size_t _nNodes = 0;
+    bool _nodalReady = false;
 };
 
 // ============================================================================
 // MeasuredLoad
 // Purpose:
-//   Time series of measured nodal loads F_i(t) with shared node size cache.
-// API mirrors MeasuredData for symmetry.
+//   Time series of measured surface resultants supplied in the XML input.
+//   Each frame stores the surfaces listed for that time and their force vectors.
 // ============================================================================
-class MeasuredLoad {
+class MeasuredLoad
+{
 public:
-    void setNodalSize(std::size_t nNodes) { _nNodes=nNodes; _nodalReady=true; _applyNodalToAll(); }
+    void clear() { series = TimeSeries<LoadFrame>{}; }
 
-    TimeIdx addTime() {
+    TimeIdx addTime(double timeValue = 0.0)
+    {
         auto t = series.addTime();
-        if (_nodalReady) series.getTime(t).setNodalSize(_nNodes);
+        series.getTime(t).time = timeValue;
         return t;
     }
 
-    void        setF (TimeIdx t, NodeIdx i, const vec3d& v) { series.getTime(t).F.setNode(i, v); }
-    vec3d&      refF (TimeIdx t, NodeIdx i)                 { return series.getTime(t).F.getNode(i); }
-    const vec3d&crefF(TimeIdx t, NodeIdx i) const           { return series.getTime(t).F.getNode(i); }
+    void addSurfaceLoad(TimeIdx t, const std::string &surface, const vec3d &force)
+    {
+        series.getTime(t).loads.push_back(LoadFrame::SurfaceForce{surface, force});
+    }
 
     std::size_t nTimes() const { return series.nTimes(); }
 
-    TimeSeries<LoadFrame> series;
+    LoadFrame &frame(TimeIdx t) { return series.getTime(t); }
+    const LoadFrame &frame(TimeIdx t) const { return series.getTime(t); }
 
-private:
-    void _applyNodalToAll() {
-        for (std::size_t k=0; k<series.nTimes(); ++k) series.getTime((TimeIdx)k).setNodalSize(_nNodes);
-    }
-    std::size_t _nNodes=0;
-    bool _nodalReady=false;
+    TimeSeries<LoadFrame> series;
 };
 
 // ============================================================================
@@ -141,41 +172,50 @@ private:
 // API:
 //   resizeVF(nVF), setNodalSize(n), addTime(v), setU/refU/crefU.
 // ============================================================================
-class VirtualFields {
+class VirtualFields
+{
 public:
     // ---- VF management ----
-    void        resizeVF(std::size_t nVF) { _vf.resize(nVF); }
-    std::size_t nVF() const               { return _vf.size(); }
+    void resizeVF(std::size_t nVF) { _vf.resize(nVF); }
+    std::size_t nVF() const { return _vf.size(); }
 
     // ---- shape cache shared by all VFs ----
-    void setNodalSize(std::size_t nNodes) { _nNodes=nNodes; _nodalReady=true; _applyNodalToAll(); }
+    void setNodalSize(std::size_t nNodes)
+    {
+        _nNodes = nNodes;
+        _nodalReady = true;
+        _applyNodalToAll();
+    }
 
     // ---- time per VF ----
-    TimeIdx addTime(VFIdx v) {
-        auto& ts = _vf[(std::size_t)v];
+    TimeIdx addTime(VFIdx v)
+    {
+        auto &ts = _vf[(std::size_t)v];
         auto t = ts.addTime();
-        if (_nodalReady) ts.getTime(t).setNodalSize(_nNodes);
+        if (_nodalReady)
+            ts.getTime(t).setNodalSize(_nNodes);
         return t;
     }
 
     // ---- accessors ----
-    void        setU (VFIdx v, TimeIdx t, NodeIdx i, const vec3d& val) { _vf[(std::size_t)v].getTime(t).u.setNode(i, val); }
-    vec3d&      refU (VFIdx v, TimeIdx t, NodeIdx i)                   { return _vf[(std::size_t)v].getTime(t).u.getNode(i); }
-    const vec3d&crefU(VFIdx v, TimeIdx t, NodeIdx i) const             { return _vf[(std::size_t)v].getTime(t).u.getNode(i); }
+    void setU(VFIdx v, TimeIdx t, NodeIdx i, const vec3d &val) { _vf[(std::size_t)v].getTime(t).u.setNode(i, val); }
+    vec3d &refU(VFIdx v, TimeIdx t, NodeIdx i) { return _vf[(std::size_t)v].getTime(t).u.getNode(i); }
+    const vec3d &crefU(VFIdx v, TimeIdx t, NodeIdx i) const { return _vf[(std::size_t)v].getTime(t).u.getNode(i); }
 
     // ---- direct access to a VF series (optional) ----
-    TimeSeries<VirtualFrame>&       getVF(VFIdx v)       { return _vf[(std::size_t)v]; }
-    const TimeSeries<VirtualFrame>& getVF(VFIdx v) const { return _vf[(std::size_t)v]; }
+    TimeSeries<VirtualFrame> &getVF(VFIdx v) { return _vf[(std::size_t)v]; }
+    const TimeSeries<VirtualFrame> &getVF(VFIdx v) const { return _vf[(std::size_t)v]; }
 
 private:
-    void _applyNodalToAll() {
-        for (auto& ts : _vf)
-            for (std::size_t k=0; k<ts.nTimes(); ++k)
+    void _applyNodalToAll()
+    {
+        for (auto &ts : _vf)
+            for (std::size_t k = 0; k < ts.nTimes(); ++k)
                 ts.getTime((TimeIdx)k).setNodalSize(_nNodes);
     }
 
-    std::size_t _nNodes=0;
-    bool _nodalReady=false;
+    std::size_t _nNodes = 0;
+    bool _nodalReady = false;
 
-    std::vector< TimeSeries<VirtualFrame> > _vf; // VF-major → time
+    std::vector<TimeSeries<VirtualFrame>> _vf; // VF-major → time
 };

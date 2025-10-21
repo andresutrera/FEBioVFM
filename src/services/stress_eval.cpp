@@ -1,4 +1,5 @@
 #include "services/stress_eval.hpp"
+
 bool StressEval::cauchy(const Deformations &F, Stresses &out, const IMaterialProvider &mat, std::string &err)
 {
   if (out.nTimes() != F.nTimes())

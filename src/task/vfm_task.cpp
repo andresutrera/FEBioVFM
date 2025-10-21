@@ -1,5 +1,4 @@
 #include "vfm_task.h"
-#include "build/mesh_info.hpp"
 #include "io/loader.hpp"
 #include "domain/vfm_displacements.hpp"
 #include "state/vfm_state.hpp"
@@ -7,12 +6,19 @@
 #include <FECore/FEModel.h>
 #include <FECore/log.h>
 #include <FECore/FEModel.h>
+#include <FECore/FEMaterial.h>
 
 #include "FE/shape_provider_febio.hpp"
 #include "services/kinematics.hpp"
 
 #include "FE/material_provider_febio.hpp"
 #include "services/stress_eval.hpp"
+
+#include "FE/params_febio.hpp"
+#include "vfm/InternalWork.hpp"
+#include "vfm/ExternalVirtualWork.hpp"
+#include "optimization/vfm_solver.hpp"
+#include <cmath>
 
 VFMTask::VFMTask(FEModel *fem) : FECoreTask(fem) {}
 
@@ -30,7 +36,6 @@ bool VFMTask::Init(const char *xmlPath)
     feLog("\n");
     feLog("\n");
 
-    // parse XML → DTO
     std::string err;
     VFMXmlReader rdr;
     if (!rdr.read(m_inputPath.c_str(), m_input, err))
@@ -39,12 +44,7 @@ bool VFMTask::Init(const char *xmlPath)
         return false;
     }
 
-    // minimal report
-    feLog("XML parsed: %s\n", m_inputPath.c_str());
-    feLog("  measuredU: %zu time slices\n", m_input.measuredU.size());
-    feLog("  virtualU : %zu fields\n", m_input.virtualU.size());
-    feLog("  loads    : %zu time slices\n", m_input.measuredLoads.size());
-    feLog("  params   : %zu\n", m_input.parameters.size());
+    m_state.clear();
 
     MeshDims dims;
     MeshConn conn;
@@ -54,7 +54,6 @@ bool VFMTask::Init(const char *xmlPath)
         feLogError(err.c_str());
         return false;
     }
-    feLog("mesh: nodes=%zu elems=%zu\n", dims.nNodes, dims.nElems);
 
     MeasuredData measured;
     VirtualFields virtuals;
@@ -81,31 +80,23 @@ bool VFMTask::Init(const char *xmlPath)
         return false;
     }
 
-    feLog("VFM: params: %zu\n", m_state.params.size());
-    for (const auto &q : m_state.params)
-        feLog("  %s = %.6g  [%g, %g]  scale=%g\n",
-              q.spec.name.c_str(), q.value, q.spec.lo, q.spec.hi, q.spec.scale);
+    m_dims = std::move(dims);
+    m_conn = std::move(conn);
+    m_quad = std::move(quad);
 
     // move into state BEFORE configuring tensors
-    m_state.clear();
     m_state.measured = std::move(measured);
     m_state.virtuals = std::move(virtuals);
     m_state.loads = std::move(loads);
     // 4) Configure tensor containers (shape + nVF)
-    m_state.configure_tensors(quad.gpPerElem, m_state.virtuals.nVF());
+    m_state.configure_tensors(m_quad.gpPerElem, m_state.virtuals.nVF());
 
     // 5) Create tensor frames mirroring displacement timelines
     m_state.mirror_frames_from_displacements();
 
-    // Quick sizes
-    feLog("mesh nodes=%zu elems=%zu gp[0]=%zu\n",
-          dims.nNodes, dims.nElems, quad.gpPerElem.empty() ? 0 : quad.gpPerElem[0]);
-    feLog("measuredU times=%zu  virtualU nVF=%zu\n",
-          m_state.measured.series.nTimes(), m_state.virtuals.nVF());
-
-    FEBioShapeProvider shp(conn);
-    Kinematics::compute_measured(quad, shp, m_state.measured, m_state.def, true, err);
-    Kinematics::compute_virtuals(quad, shp, m_state.virtuals, m_state.vdef, true, err);
+    FEBioShapeProvider shp(m_conn);
+    Kinematics::compute_measured(m_quad, shp, m_state.measured, m_state.def, true, err);
+    Kinematics::compute_virtuals(m_quad, shp, m_state.virtuals, m_state.vdef, true, err);
 
     // after compute_*
     if (!err.empty())
@@ -114,65 +105,36 @@ bool VFMTask::Init(const char *xmlPath)
         return false;
     }
 
-    // measured F sizes
-    feLog("F(meas): frames=%zu\n", m_state.def.nTimes());
-    if (m_state.def.nTimes() > 0)
+    FEModel &fem = *GetFEModel();
+    FEBioParameterApplier setParams(fem, m_state);
+
+    // force a change
+    std::vector<double> p(m_state.params.size());
+    for (size_t i = 0; i < p.size(); ++i)
+        p[i] = m_state.params[i].value;
+
+    if (!setParams.apply(p, err))
     {
-        feLog("  elems=%zu  gp(e0)=%zu\n",
-              m_state.def.nElements(0),
-              m_state.def.nGauss(0, 0));
-        // sample detF
-        const mat3d &F00 = m_state.def.crefF(0, 0, 0);
-        feLog("  detF[t0,e0,g0]=%g\n", F00.det());
+        feLogError(err.c_str());
+        return false;
     }
 
-    // virtual F sizes
-    feLog("F(virt): nVF=%zu\n", m_state.vdef.nVF());
-    if (m_state.vdef.nVF() > 0)
-    {
-        feLog("  vf0.frames=%zu\n", m_state.vdef.nTimes(0));
-        if (m_state.vdef.nTimes(0) > 0)
-        {
-            feLog("  vf0.elems=%zu  gp(e0)=%zu\n",
-                  m_state.vdef.nElements(0, 0),
-                  m_state.vdef.nGauss(0, 0, 0));
-            const mat3d &Fv000 = m_state.vdef.crefF(0, 0, 0, 0);
-            feLog("  detFv[v0,t0,e0,g0]=%g\n", Fv000.det());
-        }
-    }
+    // ensure fresh model state
+    for (int i = 0; i < fem.Materials(); ++i)
+        fem.GetMaterial(i)->Init();
 
-    FEBioMaterialProvider mat(conn);
+    FEBioMaterialProvider mat(m_conn);
 
-    m_state.stresses.addTime(); // one frame per def frame
     if (!StressEval::cauchy(m_state.def, m_state.stresses, mat, err))
     {
         feLogError(err.c_str());
         return false;
     }
 
-    Stresses P;
-    P.setElemShape(quad.gpPerElem);
-    for (size_t k = 0; k < m_state.def.nTimes(); ++k)
-        (void)P.addTime();
-    if (!StressEval::first_piola(m_state.def, m_state.stresses, P, err))
+    if (!StressEval::first_piola(m_state.def, m_state.stresses, m_state.stresses, err))
     {
         feLogError(err.c_str());
         return false;
-    }
-    // store P if you keep it, or extend Stresses to hold both σ and P as you already do.
-
-    feLog("stress: frames=%zu\n", m_state.stresses.nTimes());
-    if (m_state.stresses.nTimes() > 0)
-    {
-        feLog("  elems=%zu  gp(e0)=%zu\n",
-              m_state.stresses.nElements(0),
-              m_state.stresses.nGauss(0, 0));
-        const mat3d &s00 = m_state.stresses.crefSigma(10, 0, 0);
-        const mat3d &p00 = P.crefP(10, 0, 0); // from the P container above
-        feLog("  sigma00=%g  P00=%g\n", s00[2][2], p00[0][0]);
-        feLog("  sigma [%g %g %g]\n", s00[0][0], s00[0][1], s00[0][2]);
-        feLog("  sigma [%g %g %g]\n", s00[1][0], s00[1][1], s00[1][2]);
-        feLog("  sigma [%g %g %g]\n", s00[2][0], s00[2][1], s00[2][2]);
     }
 
     return true;
@@ -180,7 +142,94 @@ bool VFMTask::Init(const char *xmlPath)
 
 bool VFMTask::Run()
 {
-    feLog("\n=== VFM RUN ===\n");
-    feLog("Nothing to do yet.\n");
+    feLog("...........................................................................\n");
+    feLog("                                    RUN                                    \n");
+    feLog("...........................................................................\n");
+    feLog("\n");
+    feLog("\n");
+    std::string err;
+
+    if (m_state.params.empty())
+    {
+        feLog("No parameters to optimize.\n");
+        return true;
+    }
+
+    FEModel &fem = *GetFEModel();
+    FEBioParameterApplier setParams(fem, m_state);
+    FEBioMaterialProvider mat(m_conn);
+
+    auto paramSetter = [&](const std::vector<double> &values, std::string &perr) -> bool
+    {
+        return setParams.apply(values, perr);
+    };
+
+    auto computeStress = [&](std::string &perr) -> bool
+    {
+        if (!StressEval::cauchy(m_state.def, m_state.stresses, mat, perr))
+            return false;
+        return StressEval::first_piola(m_state.def, m_state.stresses, m_state.stresses, perr);
+    };
+
+    auto toVirtGrad = [](const mat3d &Fstar)
+    {
+        mat3d G = Fstar;
+        G[0][0] -= 1.0;
+        G[1][1] -= 1.0;
+        G[2][2] -= 1.0;
+        return G;
+    };
+
+    InternalWorkAssembler internal(m_dims, m_quad, m_state.vdef, m_state.stresses,
+                                   paramSetter, computeStress, toVirtGrad);
+
+    ExternalVirtualWorkAssembler external(fem, m_dims, m_state.virtuals, m_state.loads);
+    std::vector<double> ew = external(err);
+    if (!err.empty())
+    {
+        feLogError(err.c_str());
+        return false;
+    }
+    if (ew.empty())
+    {
+        feLog("External work vector empty. Nothing to optimize.\n");
+        return true;
+    }
+
+    std::vector<double> params;
+    params.reserve(m_state.params.size());
+    for (const auto &q : m_state.params)
+        params.push_back(q.value);
+
+    if (!run_vfm_levmar(params, internal, ew, 100, err))
+    {
+        if (!err.empty())
+            feLogError(err.c_str());
+        else
+            feLogError("Levenberg–Marquardt solver failed.");
+        return false;
+    }
+
+    if (!setParams.apply(params, err))
+    {
+        feLogError(err.c_str());
+        return false;
+    }
+
+    feLog("Optimized parameters:\n");
+    for (size_t i = 0; i < m_state.params.size(); ++i)
+    {
+        m_state.params[i].value = params[i];
+        feLog("  %s = %.6g\n", m_state.params[i].spec.name.c_str(), params[i]);
+    }
+
+    // Refresh stress state with optimized parameters for downstream use.
+    if (!computeStress(err))
+    {
+        feLogError(err.c_str());
+        return false;
+    }
+
+    feLog("Optimization complete.\n");
     return true;
 }

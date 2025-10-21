@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <febio_optimize version="2.0">
   <Parameters>
-    <param name="fem.material[0].G">0.01, 0, 5000000</param>
+    <param name="fem.material[0].G">0.1, 0, 5000000</param>
   </Parameters>
   <MeasuredDisplacements>
-      <time t="1">
+      <time t='1'>
         <node id="1">0,0,0</node>
         <node id="2">0,0,0</node>
         <node id="3">0,0,0</node>
@@ -14,95 +14,87 @@
         <node id="7">0,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.1">
-<node id='1'>0,0,0</node>
-<node id='2'>0.1,0,0</node>
-<node id='3'>0.1,0.1,0</node>
-<node id='4'>0,0.1,0</node>
-<node id='5'>0,0,-0.173264</node>
-<node id='6'>0.1,0,-0.173264</node>
-<node id='7'>0.1,0.1,-0.173264</node>
-<node id='8'>0,0.1,-0.173264</node>
-
+      <time t='2'>
+        <node id='1'>0,0,0</node>
+        <node id='2'>0.1,0,0</node>
+        <node id='3'>0.1,0.1,0</node>
+        <node id='4'>0,0.1,0</node>
+        <node id='5'>0,0,-0.173264</node>
+        <node id='6'>0.1,0,-0.173264</node>
+        <node id='7'>0.1,0.1,-0.173264</node>
+        <node id='8'>0,0.1,-0.173264</node>
       </time>
-      <time t="0.2">
-<node id='1'>0,0,0</node>
-<node id='2'>0.2,0,0</node>
-<node id='3'>0.2,0.2,0</node>
-<node id='4'>0,0.2,0</node>
-<node id='5'>0,0,-0.305112</node>
-<node id='6'>0.2,0,-0.305112</node>
-<node id='7'>0.2,0.2,-0.305112</node>
-<node id='8'>0,0.2,-0.305112</node>
-
+      <time t='3'>
+        <node id='1'>0,0,0</node>
+        <node id='2'>0.2,0,0</node>
+        <node id='3'>0.2,0.2,0</node>
+        <node id='4'>0,0.2,0</node>
+        <node id='5'>0,0,-0.305112</node>
+        <node id='6'>0.2,0,-0.305112</node>
+        <node id='7'>0.2,0.2,-0.305112</node>
+        <node id='8'>0,0.2,-0.305112</node>
       </time>
-      <time t="0.3">
-<node id='1'>0,0,0</node>
-<node id='2'>0.3,0,0</node>
-<node id='3'>0.3,0.3,0</node>
-<node id='4'>0,0.3,0</node>
-<node id='5'>0,0,-0.407757</node>
-<node id='6'>0.3,0,-0.407757</node>
-<node id='7'>0.3,0.3,-0.407757</node>
-<node id='8'>0,0.3,-0.407757</node>
-
+      <time t='4'>
+        <node id='1'>0,0,0</node>
+        <node id='2'>0.3,0,0</node>
+        <node id='3'>0.3,0.3,0</node>
+        <node id='4'>0,0.3,0</node>
+        <node id='5'>0,0,-0.407757</node>
+        <node id='6'>0.3,0,-0.407757</node>
+        <node id='7'>0.3,0.3,-0.407757</node>
+        <node id='8'>0,0.3,-0.407757</node>
       </time>
-      <time t="0.4">
-<node id='1'>0,0,0</node>
-<node id='2'>0.4,0,0</node>
-<node id='3'>0.4,0.4,0</node>
-<node id='4'>0,0.4,0</node>
-<node id='5'>0,0,-0.489218</node>
-<node id='6'>0.4,0,-0.489218</node>
-<node id='7'>0.4,0.4,-0.489218</node>
-<node id='8'>0,0.4,-0.489218</node>
-
+      <time t="5">
+        <node id='1'>0,0,0</node>
+        <node id='2'>0.4,0,0</node>
+        <node id='3'>0.4,0.4,0</node>
+        <node id='4'>0,0.4,0</node>
+        <node id='5'>0,0,-0.489218</node>
+        <node id='6'>0.4,0,-0.489218</node>
+        <node id='7'>0.4,0.4,-0.489218</node>
+        <node id='8'>0,0.4,-0.489218</node>
       </time>
-      <time t="0.5">
-<node id='1'>0,0,0</node>
-<node id='2'>0.5,0,0</node>
-<node id='3'>0.5,0.5,0</node>
-<node id='4'>0,0.5,0</node>
-<node id='5'>0,0,-0.554948</node>
-<node id='6'>0.5,0,-0.554948</node>
-<node id='7'>0.5,0.5,-0.554948</node>
-<node id='8'>0,0.5,-0.554948</node>
-
+      <time t="6">
+        <node id='1'>0,0,0</node>
+        <node id='2'>0.5,0,0</node>
+        <node id='3'>0.5,0.5,0</node>
+        <node id='4'>0,0.5,0</node>
+        <node id='5'>0,0,-0.554948</node>
+        <node id='6'>0.5,0,-0.554948</node>
+        <node id='7'>0.5,0.5,-0.554948</node>
+        <node id='8'>0,0.5,-0.554948</node>
       </time>
-      <time t="0.6">
-<node id='1'>0,0,0</node>
-<node id='2'>0.6,0,0</node>
-<node id='3'>0.6,0.6,0</node>
-<node id='4'>0,0.6,0</node>
-<node id='5'>0,0,-0.608748</node>
-<node id='6'>0.6,0,-0.608748</node>
-<node id='7'>0.6,0.6,-0.608748</node>
-<node id='8'>0,0.6,-0.608748</node>
-
+      <time t="7">
+        <node id='1'>0,0,0</node>
+        <node id='2'>0.6,0,0</node>
+        <node id='3'>0.6,0.6,0</node>
+        <node id='4'>0,0.6,0</node>
+        <node id='5'>0,0,-0.608748</node>
+        <node id='6'>0.6,0,-0.608748</node>
+        <node id='7'>0.6,0.6,-0.608748</node>
+        <node id='8'>0,0.6,-0.608748</node>
       </time>
-      <time t="0.7">
-<node id='1'>0,0,0</node>
-<node id='2'>0.7,0,0</node>
-<node id='3'>0.7,0.7,0</node>
-<node id='4'>0,0.7,0</node>
-<node id='5'>0,0,-0.653341</node>
-<node id='6'>0.7,0,-0.653341</node>
-<node id='7'>0.7,0.7,-0.653341</node>
-<node id='8'>0,0.7,-0.653341</node>
-
+      <time t="8">
+        <node id='1'>0,0,0</node>
+        <node id='2'>0.7,0,0</node>
+        <node id='3'>0.7,0.7,0</node>
+        <node id='4'>0,0.7,0</node>
+        <node id='5'>0,0,-0.653341</node>
+        <node id='6'>0.7,0,-0.653341</node>
+        <node id='7'>0.7,0.7,-0.653341</node>
+        <node id='8'>0,0.7,-0.653341</node>
       </time>
-      <time t="0.8">
-<node id='1'>0,0,0</node>
-<node id='2'>0.8,0,0</node>
-<node id='3'>0.8,0.8,0</node>
-<node id='4'>0,0.8,0</node>
-<node id='5'>0,0,-0.690711</node>
-<node id='6'>0.8,0,-0.690711</node>
-<node id='7'>0.8,0.8,-0.690711</node>
-<node id='8'>0,0.8,-0.690711</node>
-
+      <time t="9">
+        <node id='1'>0,0,0</node>
+        <node id='2'>0.8,0,0</node>
+        <node id='3'>0.8,0.8,0</node>
+        <node id='4'>0,0.8,0</node>
+        <node id='5'>0,0,-0.690711</node>
+        <node id='6'>0.8,0,-0.690711</node>
+        <node id='7'>0.8,0.8,-0.690711</node>
+        <node id='8'>0,0.8,-0.690711</node>
       </time>
-      <time t="0.9">
+      <time t="10">
         <node id='1'>0,0,0</node>
         <node id='2'>0.9,0,0</node>
         <node id='3'>0.9,0.9,0</node>
@@ -111,9 +103,8 @@
         <node id='6'>0.9,0,-0.72234</node>
         <node id='7'>0.9,0.9,-0.72234</node>
         <node id='8'>0,0.9,-0.72234</node>
-
       </time>
-      <time t="1.0">
+      <time t="11">
         <node id='1'>0,0,0</node>
         <node id='2'>1,0,0</node>
         <node id='3'>1,1,0</node>
@@ -126,273 +117,272 @@
   </MeasuredDisplacements>
   <VirtualDisplacements>
     <virtualdisplacement id="1">
-      <time t="0.0">
+      <time t="1">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.1">
+      <time t="2">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.2">
+      <time t="3">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.3">
+      <time t="4">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.4">
+      <time t="5">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.5">
+      <time t="6">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.6">
+      <time t="7">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.7">
+      <time t="8">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.8">
+      <time t="9">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="0.9">
+      <time t="10">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
-      <time t="1.0">
+      <time t="11">
         <node id="1">0,0,0</node>
-        <node id="2">1,0,0</node>
-        <node id="3">1,0,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
         <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">1,0,0</node>
-        <node id="7">1,0,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
         <node id="8">0,0,0</node>
       </time>
     </virtualdisplacement>
-
     <virtualdisplacement id="2">
-      <time t="0.0">
+      <time t="1">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="0.1">
+      <time t="2">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="0.2">
+      <time t="3">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="0.3">
+      <time t="4">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="0.4">
+      <time t="5">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="0.5">
+      <time t="6">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="0.6">
+      <time t="7">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="0.7">
+      <time t="8">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="0.8">
+      <time t="9">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="0.9">
+      <time t="10">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
-      <time t="1.0">
+      <time t="11">
         <node id="1">0,0,0</node>
-        <node id="2">0,0,0</node>
-        <node id="3">0,1,0</node>
-        <node id="4">0,1,0</node>
+        <node id="2">2,0,0</node>
+        <node id="3">2,0,0</node>
+        <node id="4">0,0,0</node>
         <node id="5">0,0,0</node>
-        <node id="6">0,0,0</node>
-        <node id="7">0,1,0</node>
-        <node id="8">0,1,0</node>
+        <node id="6">2,0,0</node>
+        <node id="7">2,0,0</node>
+        <node id="8">0,0,0</node>
       </time>
     </virtualdisplacement>
   </VirtualDisplacements>
   <MeasuredLoads>
-    <time t="0.0">
+    <time t="1">
       <surface id="xgrip">0, 0, 0</surface>
       <surface id="ygrip">0, 0, 0</surface>
     </time>
-    <time t="0.1">
+    <time t="2">
       <surface id="xgrip">0.00478534, 0, 0</surface>
       <surface id="ygrip">0, 0.00478534, 0</surface>
     </time>
-    <time t="0.2">
+    <time t="3">
       <surface id="xgrip">0.00797271, 0, 0</surface>
       <surface id="ygrip">0, 0.00797271, 0</surface>
     </time>
-    <time t="0.3">
+    <time t="4">
       <surface id="xgrip">0.0102864, 0, 0</surface>
       <surface id="ygrip">0, 0.0102864, 0</surface>
     </time>
-    <time t="0.4">
+    <time t="5">
       <surface id="xgrip">0.0121228, 0, 0</surface>
       <surface id="ygrip">0, 0.0121228, 0</surface>
     </time>
-    <time t="0.5">
+    <time t="6">
       <surface id="xgrip">0.0136648, 0, 0</surface>
       <surface id="ygrip">0, 0.0136648, 0</surface>
     </time>
-    <time t="0.6">
+    <time t="7">
       <surface id="xgrip">0.015026, 0, 0</surface>
       <surface id="ygrip">0, 0.015026, 0</surface>
     </time>
-    <time t="0.7">
+    <time t="8">
       <surface id="xgrip">0.0162724, 0, 0</surface>
       <surface id="ygrip">0, 0.0162724, 0</surface>
     </time>
-    <time t="0.8">
+    <time t="9">
       <surface id="xgrip">0.0174438, 0, 0</surface>
       <surface id="ygrip">0, 0.0174438, 0</surface>
     </time>
-    <time t="0.9">
+    <time t="10">
       <surface id="xgrip">0.0185649, 0, 0</surface>
       <surface id="ygrip">0, 0.0185649, 0</surface>
     </time>
-    <time t="1.0">
+    <time t="11">
       <surface id="xgrip">0.0196514, 0, 0</surface>
       <surface id="ygrip">0, 0.0196514, 0</surface>
     </time>

@@ -4,6 +4,7 @@
 #include <FECore/FECoreTask.h>
 
 #include "state/vfm_state.hpp"
+#include "build/mesh_info.hpp"
 #include "io/xml_reader.hpp"   // VFMXmlReader, XMLInput
 
 class VFMTask final : public FECoreTask {
@@ -19,4 +20,7 @@ private:
     std::string m_inputPath;
     XMLInput    m_input;     // plain DTO parsed from XML
     VFMState m_state;
+    MeshDims m_dims;
+    MeshConn m_conn;
+    MeshQuad m_quad;
 };

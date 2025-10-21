@@ -25,7 +25,7 @@ struct VFMState {
     // ---------------- inputs ----------------
     MeasuredData   measured;    // u(t,i)
     VirtualFields  virtuals;    // u_v(v,t,i)
-    MeasuredLoad   loads;       // F(t,i)  (optional, can be empty)
+    MeasuredLoad   loads;       // surface loads per time slice (optional)
 
     // ------------- derived tensors ----------
     Deformations         def;    // F(t,e,g)
