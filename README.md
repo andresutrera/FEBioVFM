@@ -95,7 +95,7 @@ $$
 W_{\text{ext}}^{(v,t)} = \sum_{k \in \text{surfaces}} \mathbf{F}_k^{(t)} \cdot \mathbf{u}_k^{* (v,t)}
 $$
 
-where $\mathbf{F}_k$ are resultant forces supplied in the XML per named surface, and $\mathbf{u}_k^*$ are the virtual displacements mapped to those surface nodes. `ExternalVirtualWorkAssembler` pre-resolves surface names to node sets using `build_surface_info` so evaluation is $O(\text{#nodes on surface})$.
+where $\mathbf{F}_k$ are resultant forces supplied in the XML per named surface, and $\mathbf{u}_k^*$ are the virtual displacements mapped to those surface nodes.
 
 ### Internal Virtual Work
 
