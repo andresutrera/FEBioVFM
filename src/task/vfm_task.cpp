@@ -1,12 +1,14 @@
 #include "vfm_task.h"
 #include <FECore/log.h>
 #include "optimization/vfm_solver.hpp"
+#include "diag/felog_bridge.hpp"
 
 VFMTask::VFMTask(FEModel *fem) : FECoreTask(fem) {}
 
 bool VFMTask::Init(const char *xmlPath)
 {
     m_inputPath = (xmlPath && *xmlPath) ? xmlPath : std::string{};
+    diag::set_current_fem(FECoreTask::GetFEModel());
     feLog("\n");
     feLog("===========================================================================\n");
     feLog("                        VIRTUAL FIELDS METHOD (VFM)                        \n");
@@ -24,6 +26,7 @@ bool VFMTask::Init(const char *xmlPath)
         feLogError(err.c_str());
         return false;
     }
+    feLog("Success reading input files.\n");
 
     if (!prepare_vfm_problem(*GetFEModel(), m_input, m_problem, err))
     {
@@ -37,7 +40,12 @@ bool VFMTask::Init(const char *xmlPath)
 
 bool VFMTask::Run()
 {
-    feLog("\n=== VFM RUN ===\n");
+    feLog("...........................................................................\n");
+    feLog("                                    RUN                                    \n");
+    feLog("...........................................................................\n");
+    feLog("\n");
+    feLog("\n");
+
     std::string err;
     if (m_problem.fem == nullptr)
     {

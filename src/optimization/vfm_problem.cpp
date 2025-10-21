@@ -10,6 +10,7 @@
 #include "services/kinematics.hpp"
 #include "FE/material_provider_febio.hpp"
 #include "services/stress_eval.hpp"
+#include "diag/felog_bridge.hpp"
 
 void VFMProblem::reset()
 {
@@ -46,6 +47,7 @@ bool prepare_vfm_problem(FEModel &fem,
                          VFMProblem &problem,
                          std::string &err)
 {
+  diag::ScopedFEBind bind(&fem);
   problem.reset();
   problem.fem = &fem;
 
@@ -67,6 +69,8 @@ bool prepare_vfm_problem(FEModel &fem,
   if (!VFMLoader::load_params(input, problem.state, err))
     return false;
 
+  feLog("Success loading input data.\n");
+
   // move data into state and configure tensors
   problem.state.measured = std::move(measured);
   problem.state.virtuals = std::move(virtuals);
@@ -85,23 +89,7 @@ bool prepare_vfm_problem(FEModel &fem,
     return false;
   }
 
-  // apply initial parameters
-  FEBioParameterApplier paramApplier(fem, problem.state);
-  std::vector<double> params(problem.state.params.size(), 0.0);
-  for (std::size_t i = 0; i < params.size(); ++i)
-    params[i] = problem.state.params[i].value;
-  if (!paramApplier.apply(params, err))
-    return false;
-
-  for (int i = 0; i < fem.Materials(); ++i)
-    fem.GetMaterial(i)->Init();
-
-  // stresses
-  FEBioMaterialProvider mat(problem.conn);
-  if (!StressEval::cauchy(problem.state.def, problem.state.stresses, mat, err))
-    return false;
-  if (!StressEval::first_piola(problem.state.def, problem.state.stresses, problem.state.stresses, err))
-    return false;
+  feLog("Success computed VFM kinetics.\n");
 
   // precompute surface info
   std::vector<std::string> surfaceNames;
