@@ -20,6 +20,8 @@ public:
 
         const std::size_t VF = m_virtuals.nVF();
         const std::size_t T = m_loads.nTimes();
+
+        bool useSingleTime = false;
         if (VF == 0 || T == 0)
             return {};
 
@@ -30,14 +32,24 @@ public:
             const auto &vfSeries = m_virtuals.getVF(static_cast<VFIdx>(v));
             if (vfSeries.nTimes() < T)
             {
-                err = "virtual field has fewer time steps than loads";
-                return {};
+                // err = "virtual field has fewer time steps than loads";
+                // return {};
+                useSingleTime = true;
             }
 
             for (std::size_t t = 0; t < T; ++t)
             {
+                VirtualFrame vfFrame;
                 const LoadFrame &frame = m_loads.frame(static_cast<TimeIdx>(t));
-                const VirtualFrame &vfFrame = vfSeries.getTime(static_cast<TimeIdx>(t));
+                if (useSingleTime)
+                {
+                    vfFrame = vfSeries.getTime(static_cast<TimeIdx>(0));
+                }
+                else
+                {
+                    vfFrame = vfSeries.getTime(static_cast<TimeIdx>(t));
+                }
+
                 double acc = 0.0;
 
                 for (const auto &entry : frame.loads)

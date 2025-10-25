@@ -43,13 +43,16 @@ public:
             return {};
 
         std::vector<double> W(VF * T, 0.0);
+        bool useSingleTime = false;
 
         for (std::size_t v = 0; v < VF; ++v)
         {
+
             if (m_vdef.nTimes((VFIdx)v) < (int)T)
             {
-                err = "virtual field has fewer time steps";
-                return {};
+                // err = "virtual field has fewer time steps";
+                // return {};
+                useSingleTime = true;
             }
             for (std::size_t t = 0; t < T; ++t)
             {
@@ -68,7 +71,16 @@ public:
                     for (std::size_t g = 0; g < nint; ++g)
                     {
                         const mat3d &P = m_stress.crefP((TimeIdx)t, e, g);
-                        const mat3d G = m_toVG(m_vdef.crefF((VFIdx)v, (TimeIdx)t, e, g));
+                        mat3d G;
+                        if (useSingleTime)
+                        {
+                            G = m_toVG(m_vdef.crefF((VFIdx)v, (TimeIdx)0, e, g));
+                        }
+                        else
+                        {
+                            G = m_toVG(m_vdef.crefF((VFIdx)v, (TimeIdx)t, e, g));
+                        }
+
                         acc += P.dotdot(G) * m_quad.jw[off + g]; // FEBio’s double contraction
                     }
                 }

@@ -167,7 +167,11 @@
             "cinttypes": "cpp",
             "typeinfo": "cpp",
             "variant": "cpp",
-            "cstring": "cpp"
+            "cstring": "cpp",
+            "codecvt": "cpp",
+            "ratio": "cpp",
+            "iomanip": "cpp",
+            "sstream": "cpp"
         },
     }
 }
