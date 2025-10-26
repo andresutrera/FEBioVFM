@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <febio_optimize version="2.0">
-  <Options type="constrained levmar">
+  <Options type="levmar">
     <grad_tol>0.000001</grad_tol>
     <step_tol>0.000001</step_tol>
     <obj_tol>0.000001</obj_tol>
