@@ -21,14 +21,14 @@ public:
         const std::size_t VF = m_virtuals.nVF();
         const std::size_t T = m_loads.nTimes();
 
-        bool useSingleTime = false;
-        if (VF == 0 || T == 0)
+                if (VF == 0 || T == 0)
             return {};
 
         std::vector<double> W(VF * T, 0.0);
 
         for (std::size_t v = 0; v < VF; ++v)
         {
+            bool useSingleTime = false;
             const auto &vfSeries = m_virtuals.getVF(static_cast<VFIdx>(v));
             if (vfSeries.nTimes() < T)
             {

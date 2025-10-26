@@ -199,6 +199,37 @@ bool solve_vfm_problem(VFMProblem &problem,
     if (!computeStress(err))
         return false;
 
+    auto noopSetter = [](const std::vector<double> &, std::string &perr) -> bool
+    {
+        perr.clear();
+        return true;
+    };
+    auto noopStress = [](std::string &perr) -> bool
+    {
+        perr.clear();
+        return true;
+    };
+
+    InternalWorkAssembler finalInternal(problem.dims, problem.quad,
+                                        problem.state.vdef, problem.state.stresses,
+                                        noopSetter, noopStress, toVirtGrad);
+
+    std::string iwErr;
+    std::vector<double> iw = finalInternal(params, iwErr);
+    if (!iwErr.empty())
+    {
+        err = iwErr;
+        return false;
+    }
+
+    feLog("\nVFM WORK VECTORS AFTER OPTIMIZATION\n");
+    feLog("External work (size=%zu):\n", ew.size());
+    for (std::size_t i = 0; i < ew.size(); ++i)
+        feLog("  ew[%zu] = %.6e\n", i, ew[i]);
+    feLog("Internal work (size=%zu):\n", iw.size());
+    for (std::size_t i = 0; i < iw.size(); ++i)
+        feLog("  iw[%zu] = %.6e\n", i, iw[i]);
+
     feLog("");
     diag::printers::ParameterTable(problem.state.params, "FINAL PARAMETERS", 6);
 

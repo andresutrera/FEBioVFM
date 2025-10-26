@@ -3,7 +3,7 @@ import numpy as np
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
-file = xplt("jobs/Biaxial.xplt")
+file = xplt("jobs/BiaxialSimple.xplt")
 file.readAllStates()
 disp = file.results.node["displacement"][:, :, :]
 
@@ -14,8 +14,9 @@ xForce = (
     .comp("x")
 )
 
+
 yForce = (
-    file.results.face_region["surface reaction force"]
+    -file.results.face_region["surface reaction force"]
     .region("PrescribedDisplacement3")
     .time(":")
     .comp("y")
@@ -28,7 +29,7 @@ minY = meshNodes[:, 1].min()
 maxY = meshNodes[:, 1].max()
 
 ustarx = (meshNodes[:, 0] - minX) / (maxX - minX)
-ustary = (-meshNodes[:, 1] + maxY) / (maxY - minY)
+ustary = (meshNodes[:, 1] - minY) / (maxY - minY)
 ustarz = np.zeros_like(ustarx)
 
 ustarx = np.column_stack((ustarx, ustarz, ustarz)) * 2
@@ -63,9 +64,9 @@ loads = ET.SubElement(root, "MeasuredLoads")
 for tforce in range(xForce.shape[0]):
     time = ET.SubElement(loads, "time", {"t": str(tforce + 1)})
     xforceEl = ET.SubElement(time, "surface", {"id": "PrescribedDisplacement2"})
-    xforceEl.text = ",".join("{:.6g}".format(float(x)) for x in xForce[tforce])
+    xforceEl.text = "{:.6g},{:.6g},{:.6g}".format(float(xForce[tforce]), 0, 0)
     yforceEl = ET.SubElement(time, "surface", {"id": "PrescribedDisplacement3"})
-    yforceEl.text = ",".join("{:.6g}".format(float(-x)) for x in yForce[tforce])
+    yforceEl.text = "{:.6g},{:.6g},{:.6g}".format(0, float(yForce[tforce]), 0)
 
 xml_bytes = ET.tostring(root, encoding="utf-8")
 pretty = minidom.parseString(xml_bytes).toprettyxml(indent="  ")
