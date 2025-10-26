@@ -107,6 +107,19 @@ bool run_vfm_levmar(std::vector<double> &params,
     if (ctx.failed)
         return false;
 
+    // report levmar metrics
+    feLog("\nLEV-MAR SUMMARY\n");
+    feLog("  Initial cost  : %.6e\n", info[0]);
+    feLog("  Final cost    : %.6e\n", info[1]);
+    feLog("  ||J^T e||_inf : %.6e\n", info[2]);
+    feLog("  ||dx||        : %.6e\n", info[3]);
+    feLog("  ||df||        : %.6e\n", info[4]);
+    feLog("  mu final      : %.6e\n", info[5]);
+    feLog("  Iterations    : %d\n", (int)info[6]);
+    feLog("  Jacobians     : %d\n", (int)info[7]);
+    feLog("  Function evals: %d\n", (int)info[8]);
+    feLog("  Stop reason   : %d\n", (int)info[9]);
+
     return true;
 }
 

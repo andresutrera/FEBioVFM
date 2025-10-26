@@ -3,6 +3,10 @@
   <Parameters>
     <param name="fem.material[0].G">100, 0, 5000000</param>
   </Parameters>
+  <Parameters>
+    <param name="fem.material[0].c1">3, 0, 5000000</param>
+    <param name="fem.material[0].c2">1, 0, 5000000</param>
+  </Parameters>
   <MeasuredDisplacements>
       <time t='1'>
         <node id="1">0,0,0</node>
