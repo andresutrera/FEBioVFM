@@ -11,6 +11,7 @@
 #include "levmar/levmar.h"
 #include "diag/felog_bridge.hpp"
 #include "diag/printers/param_table.hpp"
+#include <array>
 
 namespace
 {
@@ -61,11 +62,52 @@ namespace
         for (int i = 0; i < n; ++i)
             hx[i] = iw[static_cast<std::size_t>(i)];
     }
+
+    VFMOptimizationOptions make_solver_options(const XMLInput::Options &src)
+    {
+        VFMOptimizationOptions opts;
+
+        if (src.present && src.type == XMLInput::Options::Type::Levmar)
+            opts.method = VFMOptimizationMethod::Levmar;
+
+        if (src.tau.set)
+        {
+            opts.overrides[0] = true;
+            opts.values[0] = src.tau.value;
+        }
+        if (src.gradTol.set)
+        {
+            opts.overrides[1] = true;
+            opts.values[1] = src.gradTol.value;
+        }
+        if (src.stepTol.set)
+        {
+            opts.overrides[2] = true;
+            opts.values[2] = src.stepTol.value;
+        }
+        if (src.objTol.set)
+        {
+            opts.overrides[3] = true;
+            opts.values[3] = src.objTol.value;
+        }
+        if (src.diffScale.set)
+        {
+            opts.overrides[4] = true;
+            opts.values[4] = src.diffScale.value;
+        }
+        if (src.maxIters.set && src.maxIters.value > 0.0)
+            opts.maxIterations = static_cast<int>(src.maxIters.value);
+
+        return opts;
+    }
 } // namespace
 
 bool run_vfm_levmar(std::vector<double> &params,
                     InternalWorkAssembler &internal,
                     const std::vector<double> &externalWork,
+                    const std::vector<double> &lowerBounds,
+                    const std::vector<double> &upperBounds,
+                    const VFMOptimizationOptions &options,
                     int itmax,
                     std::string &err)
 {
@@ -82,43 +124,91 @@ bool run_vfm_levmar(std::vector<double> &params,
     const int m = static_cast<int>(params.size());
     const int n = static_cast<int>(externalWork.size());
 
+    const bool useBounds = options.method == VFMOptimizationMethod::ConstrainedLevmar;
+    if (useBounds)
+    {
+        if (lowerBounds.size() != params.size() || upperBounds.size() != params.size())
+        {
+            err = "bounds size mismatch";
+            return false;
+        }
+    }
+
     std::vector<double> x = externalWork;
 
     LevmarContext ctx;
     ctx.internal = &internal;
     ctx.err = &err;
 
-    double opts[LM_OPTS_SZ];
-    opts[0] = 1e-3;  // tau
-    opts[1] = 1e-12; // eps1
-    opts[2] = 1e-12; // eps2
-    opts[3] = 1e-15; // eps3
-    opts[4] = -1.0;  // delta (<0 → use internal)
+    std::array<double, VFMOptimizationOptions::optionCount> opts = {1e-3, 1e-12, 1e-12, 1e-15, -1.0};
+    for (std::size_t i = 0; i < opts.size(); ++i)
+    {
+        if (options.overrides[i])
+            opts[i] = options.values[i];
+    }
 
-    double info[LM_INFO_SZ];
-    dlevmar_dif(&lm_internal_eval,
-                params.data(), x.data(),
-                m, n,
-                itmax,
-                opts, info,
-                nullptr, nullptr,
-                &ctx);
+    std::vector<double> lb;
+    std::vector<double> ub;
+    if (useBounds)
+    {
+        lb.assign(lowerBounds.begin(), lowerBounds.end());
+        ub.assign(upperBounds.begin(), upperBounds.end());
+    }
+
+    const std::size_t workSize = useBounds ? static_cast<std::size_t>(LM_BC_DIF_WORKSZ(m, n))
+                                           : static_cast<std::size_t>(LM_DIF_WORKSZ(m, n));
+    std::vector<double> work(workSize > 0 ? workSize : 1u, 0.0);
+    double info[LM_INFO_SZ] = {};
+    ctx.failed = false;
+
+    int status;
+    int maxIterations = itmax;
+    if (options.maxIterations > 0 && (!useBounds || options.maxIterations <= itmax))
+        maxIterations = options.maxIterations;
+    else if (options.maxIterations > 0 && useBounds)
+        maxIterations = options.maxIterations;
+    if (useBounds)
+    {
+        status = dlevmar_bc_dif(&lm_internal_eval,
+                                params.data(), x.data(),
+                                m, n,
+                                lb.data(), ub.data(), nullptr,
+                                maxIterations,
+                                opts.data(), info,
+                                work.data(), nullptr,
+                                &ctx);
+    }
+    else
+    {
+        status = dlevmar_dif(&lm_internal_eval,
+                              params.data(), x.data(),
+                              m, n,
+                              maxIterations,
+                              opts.data(), info,
+                              work.data(), nullptr,
+                              &ctx);
+    }
 
     if (ctx.failed)
         return false;
+    if (status < 0)
+    {
+        if (err.empty())
+            err = "levmar failed";
+        return false;
+    }
 
-    // report levmar metrics
     feLog("\nLEV-MAR SUMMARY\n");
     feLog("  Initial cost  : %.6e\n", info[0]);
     feLog("  Final cost    : %.6e\n", info[1]);
     feLog("  ||J^T e||_inf : %.6e\n", info[2]);
     feLog("  ||dx||        : %.6e\n", info[3]);
-    feLog("  ||df||        : %.6e\n", info[4]);
-    feLog("  mu final      : %.6e\n", info[5]);
-    feLog("  Iterations    : %d\n", (int)info[6]);
-    feLog("  Jacobians     : %d\n", (int)info[7]);
-    feLog("  Function evals: %d\n", (int)info[8]);
-    feLog("  Stop reason   : %d\n", (int)info[9]);
+    feLog("  mu/max diag   : %.6e\n", info[4]);
+    feLog("  Iterations    : %d\n", static_cast<int>(info[5]));
+    feLog("  Stop reason   : %d\n", static_cast<int>(info[6]));
+    feLog("  Function evals: %d\n", static_cast<int>(info[7]));
+    feLog("  Jacobians     : %d\n", static_cast<int>(info[8]));
+    feLog("  Linear solves : %d\n", static_cast<int>(info[9]));
 
     return true;
 }
@@ -187,7 +277,17 @@ bool solve_vfm_problem(VFMProblem &problem,
     for (std::size_t i = 0; i < params.size(); ++i)
         params[i] = problem.state.params[i].value;
 
-    if (!run_vfm_levmar(params, internal, ew, itmax, err))
+    std::vector<double> lower(params.size());
+    std::vector<double> upper(params.size());
+    for (std::size_t i = 0; i < params.size(); ++i)
+    {
+        lower[i] = problem.state.params[i].spec.lo;
+        upper[i] = problem.state.params[i].spec.hi;
+    }
+
+    VFMOptimizationOptions solverOpts = make_solver_options(problem.solverOptions);
+
+    if (!run_vfm_levmar(params, internal, ew, lower, upper, solverOpts, itmax, err))
         return false;
 
     if (!paramApplier.apply(params, err))

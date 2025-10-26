@@ -20,6 +20,7 @@ void VFMProblem::reset()
   quad = MeshQuad{};
   surfaces.clear();
   state.clear();
+  solverOptions = XMLInput::Options{};
 }
 
 namespace
@@ -68,6 +69,7 @@ bool prepare_vfm_problem(FEModel &fem,
     return false;
   if (!VFMLoader::load_params(input, problem.state, err))
     return false;
+  problem.solverOptions = input.options;
 
   feLog("Success loading input data.\n");
 

@@ -3,6 +3,8 @@
 #include <cstring>
 #include <cstdlib>
 #include <string>
+#include <algorithm>
+#include <cctype>
 
 static void ParseParameters(XMLTag& tag, XMLInput& out)
 {
@@ -24,6 +26,74 @@ static void ParseParameters(XMLTag& tag, XMLInput& out)
         else throw XMLReader::InvalidTag(tag);
         ++tag;
     }
+}
+
+static void ParseOptions(XMLTag &tag, XMLInput &out)
+{
+    XMLInput::Options opts;
+    opts.present = true;
+
+    if (const char *typeAttr = tag.AttributeValue("type", false))
+    {
+        std::string type = typeAttr;
+        std::transform(type.begin(), type.end(), type.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (type == "levmar")
+            opts.type = XMLInput::Options::Type::Levmar;
+        else if (type == "constrained levmar")
+            opts.type = XMLInput::Options::Type::ConstrainedLevmar;
+        else
+            throw XMLReader::InvalidTag(tag);
+    }
+
+    XMLTag child(tag);
+    ++child;
+    while (!child.isend())
+    {
+        double val[1] = {0.0};
+        if (child == "tau")
+        {
+            child.value(val, 1);
+            opts.tau.set = true;
+            opts.tau.value = val[0];
+        }
+        else if (child == "grad_tol")
+        {
+            child.value(val, 1);
+            opts.gradTol.set = true;
+            opts.gradTol.value = val[0];
+        }
+        else if (child == "step_tol")
+        {
+            child.value(val, 1);
+            opts.stepTol.set = true;
+            opts.stepTol.value = val[0];
+        }
+        else if (child == "obj_tol")
+        {
+            child.value(val, 1);
+            opts.objTol.set = true;
+            opts.objTol.value = val[0];
+        }
+        else if (child == "f_diff_scale")
+        {
+            child.value(val, 1);
+            opts.diffScale.set = true;
+            opts.diffScale.value = val[0];
+        }
+        else if (child == "max_iter")
+        {
+            child.value(val, 1);
+            opts.maxIters.set = true;
+            opts.maxIters.value = val[0];
+        }
+        else
+            throw XMLReader::InvalidTag(child);
+
+        child.skip();
+        ++child;
+    }
+
+    out.options = opts;
 }
 
 // Parse <MeasuredDisplacements> or a single <virtualdisplacement> body
@@ -173,6 +243,10 @@ bool VFMXmlReader::read(const char* path, XMLInput& out, std::string& err)
             }
             else if (root == "MeasuredLoads") {
                 ParseMeasuredLoads(root, out.measuredLoads);
+                root.skip();
+            }
+            else if (root == "Options") {
+                ParseOptions(root, out);
                 root.skip();
             }
             else {

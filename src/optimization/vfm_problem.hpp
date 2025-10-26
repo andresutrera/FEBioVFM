@@ -15,6 +15,7 @@ struct VFMProblem
   MeshQuad quad;
   SurfaceMap surfaces;
   VFMState state;
+  XMLInput::Options solverOptions;
 
   void reset();
 };

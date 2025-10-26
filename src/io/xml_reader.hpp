@@ -22,6 +22,29 @@ struct XMLInput {
     std::vector<TimeSliceLoads>  measuredLoads; // <MeasuredLoads>
     struct Param { std::string name; double init=0, lo=0, hi=0, scale=1; };
     std::vector<Param> parameters;              // <Parameters>
+    struct Options
+    {
+        enum class Type
+        {
+            Levmar,
+            ConstrainedLevmar
+        };
+
+        struct Entry
+        {
+            bool set = false;
+            double value = 0.0;
+        };
+
+        bool present = false;
+        Type type = Type::ConstrainedLevmar;
+        Entry tau;
+        Entry gradTol;
+        Entry stepTol;
+        Entry objTol;
+        Entry diffScale;
+        Entry maxIters;
+    } options;
 };
 
 class VFMXmlReader {

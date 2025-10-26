@@ -14,7 +14,7 @@ src/
 ├── FE/               # FEBio integration helpers (shape, material provider, parameter applier)
 ├── io/               # XML reader and XPLT exporter
 ├── vfm/              # Algebraic assemblers for internal and external work
-├── levmar/           # Levenberg–Marquardt routine (dlevmar_dif)
+├── levmar/           # Levenberg–Marquardt routines (dlevmar_dif / dlevmar_bc_dif)
 └── plugin/           # DLL entry glue for FEBio
 ```
 
@@ -37,7 +37,7 @@ The code is organised around a small number of data-carrier classes (`state/`, `
      - Parameter updates (lambda closures) and stress recomputation.
      - Internal work assembly (`vfm/InternalWork.hpp`).
      - External work assembly (`vfm/ExternalVirtualWork.hpp`).
-     - Non-linear least squares solve via `run_vfm_levmar` (wrapper over `dlevmar_dif`).
+     - Non-linear least squares solve via `run_vfm_levmar` (wrapper over `dlevmar_dif` or `dlevmar_bc_dif` according to solver options).
    - Upon convergence the physical parameters inside `VFMState` are updated and a final stress refresh ensures tensors match the optimal solution.
 
 3. **Export (`io/exporter.cpp`)**
@@ -46,6 +46,27 @@ The code is organised around a small number of data-carrier classes (`state/`, `
      - Measured deformation gradient per element (Gauss-point average).
      - Cauchy stress and First Piola stress per element.
      - For each virtual field: displacement and deformation gradient histories.
+
+### Solver Options
+
+The optimisation XML may provide an optional
+
+```
+<Options type="constrained levmar">
+  <tau>1e-3</tau>
+  <grad_tol>1e-12</grad_tol>
+  <step_tol>1e-12</step_tol>
+  <obj_tol>1e-15</obj_tol>
+  <f_diff_scale>-1</f_diff_scale>
+  <max_iter>200</max_iter>
+</Options>
+```
+
+block. Supported `type` values are `levmar` (unconstrained) and `constrained levmar`
+(default). The optional child tags override the Levenberg–Marquardt parameters
+`[τ, ε₁, ε₂, ε₃, δ]`; omitted entries fall back to the code defaults. When the
+unconstrained solver is selected the parameter bounds from the `<Parameters>`
+section are ignored. The optional `<max_iter>` tag limits the maximum LM iterations.
 
 ## Data Containers
 
@@ -111,7 +132,7 @@ with $\mathbf{G} = F^{*(v)} - \mathbf{I}$, and weights $w_{e,g} = \det J_0 \, w_
 
 ### Non-linear Solve
 
-The unknown parameter vector $\boldsymbol{\theta}$ (one entry per optimised FEBio material parameter) is passed to `dlevmar_dif`. The residual for virtual field $v$ and frame $t$ is
+The unknown parameter vector $\boldsymbol{\theta}$ (one entry per optimised FEBio material parameter) is passed to either `dlevmar_dif` or `dlevmar_bc_dif`, depending on the `<Options>` block in the optimisation XML. When the type is `constrained levmar`, the box bounds supplied for each parameter are enforced; for `levmar` the algorithm ignores bounds and runs unconstrained. The residual for virtual field $v$ and frame $t$ is
 
 $$
 r_{(v,t)}(\boldsymbol{\theta}) = W_{\text{ext}}^{(v,t)} - W_{\text{int}}^{(v,t)}(\boldsymbol{\theta})
