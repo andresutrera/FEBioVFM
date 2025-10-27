@@ -12,6 +12,8 @@
 #include "diag/felog_bridge.hpp"
 #include "diag/printers/param_table.hpp"
 #include <array>
+#include <iomanip>
+#include <sstream>
 
 namespace
 {
@@ -20,6 +22,9 @@ namespace
         InternalWorkAssembler *internal = nullptr;
         std::string *err = nullptr;
         bool failed = false;
+        const std::vector<double> *external = nullptr;
+        bool logEvaluations = false;
+        std::size_t evalCount = 0;
     };
 
     void lm_internal_eval(double *p, double *hx, int m, int n, void *adata)
@@ -58,6 +63,39 @@ namespace
 
         if (!localErr.empty() && ctx->err)
             *ctx->err = localErr;
+
+        if (ctx->logEvaluations)
+        {
+            double cost = 0.0;
+            bool costValid = ctx->external && ctx->external->size() == static_cast<std::size_t>(n);
+            if (costValid)
+            {
+                for (int i = 0; i < n; ++i)
+                {
+                    const double diff = iw[static_cast<std::size_t>(i)] - ctx->external->at(static_cast<std::size_t>(i));
+                    cost += diff * diff;
+                }
+                cost *= 0.5;
+            }
+
+            std::ostringstream oss;
+            oss.setf(std::ios::scientific);
+            oss << std::setprecision(6);
+            oss << "LM eval " << (++ctx->evalCount);
+            if (costValid)
+                oss << " | cost=" << cost;
+            else
+                oss << " | cost=N/A";
+            oss << " | params=[";
+            for (int i = 0; i < m; ++i)
+            {
+                if (i > 0)
+                    oss << ", ";
+                oss << params[static_cast<std::size_t>(i)];
+            }
+            oss << "]";
+            feLog("%s\n", oss.str().c_str());
+        }
 
         for (int i = 0; i < n; ++i)
             hx[i] = iw[static_cast<std::size_t>(i)];
@@ -139,6 +177,9 @@ bool run_vfm_levmar(std::vector<double> &params,
     LevmarContext ctx;
     ctx.internal = &internal;
     ctx.err = &err;
+    ctx.external = &x;
+    ctx.logEvaluations = true;
+    ctx.evalCount = 0;
 
     std::array<double, VFMOptimizationOptions::optionCount> opts = {1e-3, 1e-12, 1e-12, 1e-15, -1.0};
     for (std::size_t i = 0; i < opts.size(); ++i)
