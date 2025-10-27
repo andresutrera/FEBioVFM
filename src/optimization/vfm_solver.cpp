@@ -12,11 +12,44 @@
 #include "diag/felog_bridge.hpp"
 #include "diag/printers/param_table.hpp"
 #include <array>
+#include <atomic>
+#include <csignal>
 #include <iomanip>
 #include <sstream>
 
 namespace
 {
+    std::atomic_bool g_levmarInterrupt{false};
+
+    void handle_sigint(int)
+    {
+        g_levmarInterrupt.store(true);
+    }
+
+    struct ScopedSigintHandler
+    {
+        using Handler = void (*)(int);
+        Handler previous = nullptr;
+        bool installed = false;
+
+        ScopedSigintHandler()
+        {
+#ifdef SIGINT
+            previous = std::signal(SIGINT, handle_sigint);
+            installed = true;
+#endif
+            g_levmarInterrupt.store(false);
+        }
+
+        ~ScopedSigintHandler()
+        {
+#ifdef SIGINT
+            if (installed)
+                std::signal(SIGINT, previous);
+#endif
+        }
+    };
+
     struct LevmarContext
     {
         InternalWorkAssembler *internal = nullptr;
@@ -25,6 +58,7 @@ namespace
         const std::vector<double> *external = nullptr;
         bool logEvaluations = false;
         std::size_t evalCount = 0;
+        std::atomic_bool *cancelFlag = nullptr;
     };
 
     void lm_internal_eval(double *p, double *hx, int m, int n, void *adata)
@@ -43,6 +77,16 @@ namespace
 
         if (ctx->failed)
         {
+            for (int i = 0; i < n; ++i)
+                hx[i] = 0.0;
+            return;
+        }
+
+        if (ctx->cancelFlag && ctx->cancelFlag->load())
+        {
+            if (ctx->err && ctx->err->empty())
+                *ctx->err = "optimization interrupted";
+            ctx->failed = true;
             for (int i = 0; i < n; ++i)
                 hx[i] = 0.0;
             return;
@@ -180,6 +224,9 @@ bool run_vfm_levmar(std::vector<double> &params,
     ctx.external = &x;
     ctx.logEvaluations = true;
     ctx.evalCount = 0;
+    ctx.cancelFlag = &g_levmarInterrupt;
+
+    ScopedSigintHandler sigintGuard;
 
     std::array<double, VFMOptimizationOptions::optionCount> opts = {1e-3, 1e-12, 1e-12, 1e-15, -1.0};
     for (std::size_t i = 0; i < opts.size(); ++i)
@@ -231,7 +278,11 @@ bool run_vfm_levmar(std::vector<double> &params,
     }
 
     if (ctx.failed)
+    {
+        if (err.empty() && g_levmarInterrupt.load())
+            err = "optimization interrupted";
         return false;
+    }
     if (status < 0)
     {
         if (err.empty())

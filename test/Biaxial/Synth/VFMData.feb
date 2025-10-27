@@ -1,14 +1,14 @@
 <?xml version="1.0" ?>
 <febio_optimize version="2.0">
   <Options type="constrained levmar">
-    <grad_tol>0.000001</grad_tol>
-    <step_tol>0.000001</step_tol>
-    <obj_tol>0.000001</obj_tol>
-    <f_diff_scale>0.001</f_diff_scale>
+    <grad_tol>0.01</grad_tol>
+    <step_tol>0.01</step_tol>
+    <obj_tol>0.01</obj_tol>
+    <f_diff_scale>0.01</f_diff_scale>
     <max_iter>200</max_iter>
   </Options>
   <Parameters>
-    <param name="fem.material[0].c1">100, 0,500</param>
+    <param name="fem.material[0].c1">2, 0,500</param>
     <param name="fem.material[0].c2">0.2, 0, 2</param>
   </Parameters>
   <MeasuredDisplacements>
