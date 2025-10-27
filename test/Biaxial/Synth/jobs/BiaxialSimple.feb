@@ -2975,7 +2975,7 @@
 			</points>
 		</load_controller>
 	</LoadData>
-	<Output>
+<!--	<Output>
 		<plotfile type="febio">
 			<var type="displacement"/>
 			<var type="stress"/>
@@ -2983,5 +2983,5 @@
 			<var type="surface reaction force" surface="PrescribedDisplacement2"/>
 			<var type="surface reaction force" surface="PrescribedDisplacement3"/>
 		</plotfile>
-	</Output>
+	</Output>-->
 </febio_spec>

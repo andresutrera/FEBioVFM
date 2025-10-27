@@ -283,7 +283,7 @@ bool export_vfm_results(const VFMProblem &problem,
 
   // Measured displacement
   auto *measDisp = new DisplacementPlot(problem.fem, problem.dims);
-  if (!plot.AddVariable(measDisp, "measured displacement"))
+  if (!plot.AddVariable(measDisp, "displacement"))
   {
     err = "Failed to register measured displacement.";
     delete measDisp;
