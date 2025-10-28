@@ -21,7 +21,7 @@ febio4 -i FEModel.feb -task="VFM" VFMData.feb
 
 ## VFMData Snapshot
 
-This section explains how to build ne data file needed by the VFM Task plugin.
+This section explains how to build the data file needed by the VFM Task plugin.
 
 ```xml
 <Options>
