@@ -12,7 +12,7 @@
 	<Material>
 		<material id="1" name="Material1" type="Mooney-Rivlin">
 			<density>1</density>
-			<k>4000</k>
+			<k>100000</k>
 			<pressure_model>default</pressure_model>
 			<c1>3.51</c1>
 			<c2>0.93</c2>
@@ -2936,7 +2936,7 @@
 					<arc_length>0</arc_length>
 					<arc_length_scale>0</arc_length_scale>
 					<qn_method type="BFGS">
-						<max_ups>10</max_ups>
+						<max_ups>0</max_ups>
 						<max_buffer_size>0</max_buffer_size>
 						<cycle_buffer>1</cycle_buffer>
 						<cmax>100000</cmax>

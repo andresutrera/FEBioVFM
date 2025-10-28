@@ -456,7 +456,7 @@ bool solve_vfm_problem(VFMProblem &problem,
             out.setf(std::ios::scientific);
             out << std::setprecision(6);
 
-            out << "#Step";
+            out << "Step";
             for (std::size_t v = 0; v < vfCount; ++v)
                 out << ", IVW" << (v + 1);
             for (std::size_t v = 0; v < vfCount; ++v)
@@ -468,7 +468,7 @@ bool solve_vfm_problem(VFMProblem &problem,
                 if (haveLoadTimes)
                 {
                     const auto &frame = problem.state.loads.frame(static_cast<TimeIdx>(t));
-                    out << frame.time;
+                    out << (int)frame.time;
                 }
                 else
                 {
