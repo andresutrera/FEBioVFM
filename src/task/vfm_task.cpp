@@ -9,46 +9,44 @@
 
 namespace
 {
-// Configure FEBio logging so feLog also writes to disk.
-enum class LogSetupResult
-{
-    NotApplicable,
-    Enabled,
-    Failed
-};
-
-LogSetupResult ensure_vfm_logfile(FEModel *fem,
-                                  const std::string &inputPath,
-                                  std::string &outPath)
-{
-    auto *febio = dynamic_cast<FEBioModel *>(fem);
-    if (febio == nullptr)
-        return LogSetupResult::NotApplicable;
-
-    std::filesystem::path logPath = inputPath.empty() ?
-                                        std::filesystem::path("vfm.log") :
-                                        std::filesystem::path(inputPath).replace_extension(".log");
-
-    outPath = logPath.string();
-
-    Logfile &logFile = febio->GetLogFile();
-    if (logFile.is_valid())
+    // Configure FEBio logging so feLog also writes to disk.
+    enum class LogSetupResult
     {
-        if (logFile.FileName() == outPath)
+        NotApplicable,
+        Enabled,
+        Failed
+    };
+
+    LogSetupResult ensure_vfm_logfile(FEModel *fem,
+                                      const std::string &inputPath,
+                                      std::string &outPath)
+    {
+        auto *febio = dynamic_cast<FEBioModel *>(fem);
+        if (febio == nullptr)
+            return LogSetupResult::NotApplicable;
+
+        std::filesystem::path logPath = inputPath.empty() ? std::filesystem::path("vfm.log") : std::filesystem::path(inputPath).replace_extension(".log");
+
+        outPath = logPath.string();
+
+        Logfile &logFile = febio->GetLogFile();
+        if (logFile.is_valid())
         {
-            logFile.SetMode(Logfile::LOG_FILE_AND_SCREEN);
-            return LogSetupResult::Enabled;
+            if (logFile.FileName() == outPath)
+            {
+                logFile.SetMode(Logfile::LOG_FILE_AND_SCREEN);
+                return LogSetupResult::Enabled;
+            }
+            logFile.close();
         }
-        logFile.close();
+
+        febio->SetLogFilename(outPath);
+        if (!logFile.open(outPath.c_str()))
+            return LogSetupResult::Failed;
+
+        logFile.SetMode(Logfile::LOG_FILE_AND_SCREEN);
+        return LogSetupResult::Enabled;
     }
-
-    febio->SetLogFilename(outPath);
-    if (!logFile.open(outPath.c_str()))
-        return LogSetupResult::Failed;
-
-    logFile.SetMode(Logfile::LOG_FILE_AND_SCREEN);
-    return LogSetupResult::Enabled;
-}
 } // namespace
 
 VFMTask::VFMTask(FEModel *fem) : FECoreTask(fem) {}
@@ -62,6 +60,7 @@ bool VFMTask::Init(const char *xmlPath)
     feLog("\n");
     feLog("===========================================================================\n");
     feLog("                        VIRTUAL FIELDS METHOD (VFM)                        \n");
+    feLog("                               FEBio Plugin                                \n");
     feLog("===========================================================================\n");
     feLog("\n");
     feLog("...........................................................................\n");
@@ -94,7 +93,7 @@ bool VFMTask::Init(const char *xmlPath)
 
     feLog("Problem initialization complete.\n");
 
-    feLog("");
+    feLog("\n");
     diag::printers::ParameterTable(m_problem.state.params, "INITIAL PARAMETERS", 6);
 
     return true;
@@ -102,10 +101,9 @@ bool VFMTask::Init(const char *xmlPath)
 
 bool VFMTask::Run()
 {
-    feLog("...........................................................................\n");
-    feLog("                                    RUN                                    \n");
-    feLog("...........................................................................\n");
-    feLog("\n");
+    feLog("..........................................................................\n");
+    feLog("                                OPTIMIZING                                \n");
+    feLog("..........................................................................\n");
     feLog("\n");
 
     std::string err;
@@ -139,6 +137,6 @@ bool VFMTask::Run()
         return false;
     }
 
-    feLog("Exported results to %s\n", outPath.string().c_str());
+    feLog("Results successfully exported to %s\n", outPath.string().c_str());
     return true;
 }

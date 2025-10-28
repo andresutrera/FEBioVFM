@@ -61,7 +61,8 @@ bool prepare_vfm_problem(FEModel &fem,
     if (removedDataRecords > 0)
     {
       dataStore.Clear();
-      feLog("Cleared %d predefined output record(s) from FE model.\n", removedDataRecords);
+      feLogWarning("Cleared %d predefined output record(s) from FE model.\n", removedDataRecords);
+      feLog("\n");
     }
   }
 
@@ -76,7 +77,8 @@ bool prepare_vfm_problem(FEModel &fem,
       if (!plotType.empty())
         plotStore.SetPlotFileType(plotType);
       plotStore.SetPlotCompression(plotCompression);
-      feLog("Cleared %d predefined plot variable(s) from FE model.\n", removedPlotVars);
+      feLogWarning("Cleared %d predefined plot variable(s) from FE model.\n", removedPlotVars);
+      feLog("\n");
     }
   }
 

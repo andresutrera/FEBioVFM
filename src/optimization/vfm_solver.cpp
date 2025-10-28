@@ -267,12 +267,12 @@ bool run_vfm_levmar(std::vector<double> &params,
     else
     {
         status = dlevmar_dif(&lm_internal_eval,
-                              params.data(), x.data(),
-                              m, n,
-                              maxIterations,
-                              opts.data(), info,
-                              work.data(), nullptr,
-                              &ctx);
+                             params.data(), x.data(),
+                             m, n,
+                             maxIterations,
+                             opts.data(), info,
+                             work.data(), nullptr,
+                             &ctx);
     }
 
     if (ctx.failed)
@@ -411,16 +411,16 @@ bool solve_vfm_problem(VFMProblem &problem,
         return false;
     }
 
-    feLog("\nVFM WORK VECTORS AFTER OPTIMIZATION\n");
-    feLog("External work (size=%zu):\n", ew.size());
+    feLog("\nWork arrays after optimization:\n");
+    feLog("External virtual work (size=%zu):\n", ew.size());
     for (std::size_t i = 0; i < ew.size(); ++i)
-        feLog("  ew[%zu] = %.6e\n", i, ew[i]);
-    feLog("Internal work (size=%zu):\n", iw.size());
+        feLog("  evw[%zu] = %.6e\n", i, ew[i]);
+    feLog("Internal virtual work (size=%zu):\n", iw.size());
     for (std::size_t i = 0; i < iw.size(); ++i)
-        feLog("  iw[%zu] = %.6e\n", i, iw[i]);
+        feLog("  ivw[%zu] = %.6e\n", i, iw[i]);
 
-    feLog("");
+    feLog("\n");
     diag::printers::ParameterTable(problem.state.params, "FINAL PARAMETERS", 6);
-
+    feLog("\n");
     return true;
 }

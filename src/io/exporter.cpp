@@ -432,6 +432,5 @@ bool export_vfm_results(const VFMProblem &problem,
   }
 
   plot.Close();
-  logger.info("Exported XPLT results to %s\n", filePath.c_str());
   return true;
 }
