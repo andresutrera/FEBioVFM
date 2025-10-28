@@ -117,6 +117,11 @@ endif()
 set(OLD_SDK ${FEBio_SDK} CACHE INTERNAL "Old SDK path.")
 mark_as_advanced(OLD_SDK)
 
+get_filename_component(FEBIO_SDK_ABS "${FEBio_SDK}" ABSOLUTE)
+get_filename_component(FEBIO_SDK_PARENT "${FEBIO_SDK_ABS}" DIRECTORY)
+set(FEBIO_SDK_LIB_INSTALL_DIR "${FEBIO_SDK_PARENT}/lib")
+set(FEBIO_SDK_BIN_DIR "${FEBIO_SDK_PARENT}/bin")
+
 #### Check if paths are valid and find libs ####
 function(findLib libDir libOut libName)
     # Optional arguments ARGV3-ARVG6 can be used as alernative names for the library
@@ -274,4 +279,63 @@ if (WIN32)
     endforeach()
 else()
     target_link_libraries(${name} PRIVATE -Wl,--start-group ${MKL_OMP_LIB} ${MKL_LIBS} -Wl,--end-group ${FEBio_LIBS} )
+endif()
+
+get_target_property(_plugin_output_name ${name} OUTPUT_NAME)
+if(NOT _plugin_output_name)
+    set(_plugin_output_name ${name})
+endif()
+get_target_property(_plugin_prefix ${name} PREFIX)
+if(NOT _plugin_prefix OR _plugin_prefix STREQUAL "NOTFOUND")
+    if(WIN32)
+        set(_plugin_prefix "")
+    else()
+        set(_plugin_prefix "lib")
+    endif()
+endif()
+get_target_property(_plugin_suffix ${name} SUFFIX)
+if(NOT _plugin_suffix OR _plugin_suffix STREQUAL "NOTFOUND")
+    if(WIN32)
+        set(_plugin_suffix ".dll")
+    elseif(APPLE)
+        set(_plugin_suffix ".dylib")
+    else()
+        set(_plugin_suffix ".so")
+    endif()
+endif()
+set(PLUGIN_OUTPUT_FILENAME "${_plugin_prefix}${_plugin_output_name}${_plugin_suffix}")
+
+if(FEBIO_SDK_LIB_INSTALL_DIR)
+    install(TARGETS ${name}
+        LIBRARY DESTINATION "${FEBIO_SDK_LIB_INSTALL_DIR}"
+        ARCHIVE DESTINATION "${FEBIO_SDK_LIB_INSTALL_DIR}"
+        RUNTIME DESTINATION "${FEBIO_SDK_BIN_DIR}")
+
+    set(_febio_xml_path "${FEBIO_SDK_BIN_DIR}/febio.xml")
+    string(CONCAT _install_script
+        "set(_xml_path \"${_febio_xml_path}\")\n"
+        "set(_lib_name \"${PLUGIN_OUTPUT_FILENAME}\")\n"
+        "if(EXISTS \"\${_xml_path}\")\n"
+        "  file(READ \"\${_xml_path}\" _content)\n"
+        "  string(FIND \"\${_content}\" \"<import>\${_lib_name}</import>\" _existing_pos)\n"
+        "  if(_existing_pos GREATER -1)\n"
+        "    # entry already present\n"
+        "  else()\n"
+        "    string(FIND \"\${_content}\" \"</febio_config>\" _close_pos)\n"
+        "    if(_close_pos GREATER -1)\n"
+        "      string(REPLACE \"</febio_config>\" \"  <import>\${_lib_name}</import>\\n</febio_config>\" _updated \"\${_content}\")\n"
+        "      if(_updated STREQUAL \"\${_content}\")\n"
+        "        message(WARNING \"Failed to append import entry to \${_xml_path}\")\n"
+        "      else()\n"
+        "        file(WRITE \"\${_xml_path}\" \"\${_updated}\")\n"
+        "      endif()\n"
+        "    else()\n"
+        "      message(WARNING \"Missing </febio_config> tag in \${_xml_path}\")\n"
+        "    endif()\n"
+        "  endif()\n"
+        "else()\n"
+        "  message(WARNING \"FEBio config file not found: \${_xml_path}\")\n"
+        "endif()\n"
+    )
+    install(CODE "${_install_script}")
 endif()
