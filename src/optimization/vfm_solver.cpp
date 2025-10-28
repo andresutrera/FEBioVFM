@@ -19,6 +19,8 @@
 
 namespace
 {
+    constexpr int kDefaultMaxIterations = 100;
+
     std::atomic_bool g_levmarInterrupt{false};
 
     void handle_sigint(int)
@@ -177,6 +179,7 @@ namespace
             opts.overrides[4] = true;
             opts.values[4] = src.diffScale.value;
         }
+        opts.maxIterations = kDefaultMaxIterations;
         if (src.maxIters.set && src.maxIters.value > 0.0)
             opts.maxIterations = static_cast<int>(src.maxIters.value);
 
@@ -190,7 +193,6 @@ bool run_vfm_levmar(std::vector<double> &params,
                     const std::vector<double> &lowerBounds,
                     const std::vector<double> &upperBounds,
                     const VFMOptimizationOptions &options,
-                    int itmax,
                     std::string &err)
 {
     err.clear();
@@ -250,11 +252,7 @@ bool run_vfm_levmar(std::vector<double> &params,
     ctx.failed = false;
 
     int status;
-    int maxIterations = itmax;
-    if (options.maxIterations > 0 && (!useBounds || options.maxIterations <= itmax))
-        maxIterations = options.maxIterations;
-    else if (options.maxIterations > 0 && useBounds)
-        maxIterations = options.maxIterations;
+    const int maxIterations = options.maxIterations > 0 ? options.maxIterations : kDefaultMaxIterations;
     if (useBounds)
     {
         status = dlevmar_bc_dif(&lm_internal_eval,
@@ -306,7 +304,6 @@ bool run_vfm_levmar(std::vector<double> &params,
 }
 
 bool solve_vfm_problem(VFMProblem &problem,
-                       int itmax,
                        std::string &err)
 {
     diag::ScopedFEBind bind(problem.fem);
@@ -379,7 +376,7 @@ bool solve_vfm_problem(VFMProblem &problem,
 
     VFMOptimizationOptions solverOpts = make_solver_options(problem.solverOptions);
 
-    if (!run_vfm_levmar(params, internal, ew, lower, upper, solverOpts, itmax, err))
+    if (!run_vfm_levmar(params, internal, ew, lower, upper, solverOpts, err))
         return false;
 
     if (!paramApplier.apply(params, err))

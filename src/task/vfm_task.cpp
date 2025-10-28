@@ -114,7 +114,7 @@ bool VFMTask::Run()
         feLogError("VFM problem not initialized.");
         return false;
     }
-    if (!solve_vfm_problem(m_problem, 100, err))
+    if (!solve_vfm_problem(m_problem, err))
     {
         if (!err.empty())
             feLogError(err.c_str());

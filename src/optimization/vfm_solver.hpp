@@ -32,9 +32,7 @@ bool run_vfm_levmar(std::vector<double>& params,
                     const std::vector<double>& lowerBounds,
                     const std::vector<double>& upperBounds,
                     const VFMOptimizationOptions& options,
-                    int itmax,
                     std::string& err);
 
 bool solve_vfm_problem(VFMProblem& problem,
-                       int itmax,
                        std::string& err);
