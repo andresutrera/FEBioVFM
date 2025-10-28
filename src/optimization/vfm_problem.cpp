@@ -3,7 +3,10 @@
 #include <vector>
 #include <FECore/FEModel.h>
 #include <FECore/FEMaterial.h>
+#include <FECore/DataStore.h>
+#include <FECore/FEPlotDataStore.h>
 #include <FECore/log.h>
+#include <FEBioLib/FEBioModel.h>
 #include "io/loader.hpp"
 #include "FE/params_febio.hpp"
 #include "FE/shape_provider_febio.hpp"
@@ -51,6 +54,39 @@ bool prepare_vfm_problem(FEModel &fem,
   diag::ScopedFEBind bind(&fem);
   problem.reset();
   problem.fem = &fem;
+
+  {
+    DataStore &dataStore = fem.GetDataStore();
+    const int removedDataRecords = dataStore.Size();
+    if (removedDataRecords > 0)
+    {
+      dataStore.Clear();
+      feLog("Cleared %d predefined output record(s) from FE model.\n", removedDataRecords);
+    }
+  }
+
+  {
+    FEPlotDataStore &plotStore = fem.GetPlotDataStore();
+    const int removedPlotVars = plotStore.PlotVariables();
+    if (removedPlotVars > 0)
+    {
+      const std::string plotType = plotStore.GetPlotFileType();
+      const int plotCompression = plotStore.GetPlotCompression();
+      plotStore = FEPlotDataStore{};
+      if (!plotType.empty())
+        plotStore.SetPlotFileType(plotType);
+      plotStore.SetPlotCompression(plotCompression);
+      feLog("Cleared %d predefined plot variable(s) from FE model.\n", removedPlotVars);
+    }
+  }
+
+  if (auto *febioModel = dynamic_cast<FEBioModel *>(&fem))
+  {
+    if (PlotFile *plotFile = febioModel->GetPlotFile())
+    {
+      plotFile->GetDictionary().Clear();
+    }
+  }
 
   // mesh info
   if (!build_mesh_info(fem, problem.dims, problem.conn, problem.quad, err))

@@ -21,20 +21,33 @@ public:
         const std::size_t VF = m_virtuals.nVF();
         const std::size_t T = m_loads.nTimes();
 
-                if (VF == 0 || T == 0)
+        if (VF == 0 || T == 0)
             return {};
 
         std::vector<double> W(VF * T, 0.0);
 
         for (std::size_t v = 0; v < VF; ++v)
         {
-            bool useSingleTime = false;
             const auto &vfSeries = m_virtuals.getVF(static_cast<VFIdx>(v));
-            if (vfSeries.nTimes() < T)
+            const int vfTimes = vfSeries.nTimes();
+            if (vfTimes == 0)
             {
-                // err = "virtual field has fewer time steps than loads";
-                // return {};
-                useSingleTime = true;
+                err = "virtual field has no time steps.";
+                return {};
+            }
+
+            bool useSingleTime = false;
+            if (static_cast<std::size_t>(vfTimes) < T)
+            {
+                if (vfTimes == 1)
+                {
+                    useSingleTime = true;
+                }
+                else
+                {
+                    err = "virtual field has fewer time steps than loads. A constant field can be defined using a single time entry.";
+                    return {};
+                }
             }
 
             for (std::size_t t = 0; t < T; ++t)

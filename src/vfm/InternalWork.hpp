@@ -43,16 +43,28 @@ public:
             return {};
 
         std::vector<double> W(VF * T, 0.0);
-        bool useSingleTime = false;
 
         for (std::size_t v = 0; v < VF; ++v)
         {
-
-            if (m_vdef.nTimes((VFIdx)v) < (int)T)
+            const int vfTimes = m_vdef.nTimes((VFIdx)v);
+            if (vfTimes == 0)
             {
-                // err = "virtual field has fewer time steps";
-                // return {};
-                useSingleTime = true;
+                err = "virtual field has no time steps.";
+                return {};
+            }
+
+            bool useSingleTime = false;
+            if (vfTimes < static_cast<int>(T))
+            {
+                if (vfTimes == 1)
+                {
+                    useSingleTime = true;
+                }
+                else
+                {
+                    err = "virtual field has fewer time steps. A constant field can be defined using a single time entry.";
+                    return {};
+                }
             }
             for (std::size_t t = 0; t < T; ++t)
             {

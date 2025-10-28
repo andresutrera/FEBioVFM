@@ -236,6 +236,8 @@ namespace
   {
     DisplacementPlot *disp = nullptr;
     DeformationGradientPlot *def = nullptr;
+    bool dispSingle = false;
+    bool defSingle = false;
   };
 
   std::string vf_name(const std::string &base, const std::string &id, std::size_t idx, std::size_t total)
@@ -323,6 +325,17 @@ bool export_vfm_results(const VFMProblem &problem,
   for (std::size_t v = 0; v < nVF; ++v)
   {
     const auto &vf = problem.state.virtuals.getVF((VFIdx)v);
+    const auto &vfDefSeries = problem.state.vdef.getVF((VFIdx)v);
+    if (vf.nTimes() == 0)
+    {
+      err = "virtual displacement field has no time steps.";
+      return false;
+    }
+    if (vfDefSeries.nTimes() == 0)
+    {
+      err = "virtual deformation field has no time steps.";
+      return false;
+    }
     std::string dispName = vf_name("virtual displacement", "", v, nVF);
     auto *vd = new DisplacementPlot(problem.fem, problem.dims);
     if (!plot.AddVariable(vd, dispName.c_str()))
@@ -341,7 +354,9 @@ bool export_vfm_results(const VFMProblem &problem,
       return false;
     }
 
-    vfPlots.push_back({vd, vg});
+    const bool dispSingle = (vf.nTimes() == 1);
+    const bool defSingle = (vfDefSeries.nTimes() == 1);
+    vfPlots.push_back({vd, vg, dispSingle, defSingle});
   }
 
   if (!plot.Open(filePath.c_str()))
@@ -383,13 +398,27 @@ bool export_vfm_results(const VFMProblem &problem,
       const auto &vfDefSeries = problem.state.vdef.getVF((VFIdx)v);
 
       const NodalField<vec3d> *vdisp = nullptr;
-      if (t < vfDispSeries.nTimes())
+      if (vfPlots[v].dispSingle)
+      {
+        if (vfDispSeries.nTimes() > 0)
+          vdisp = &vfDispSeries.getTime((TimeIdx)0).u;
+      }
+      else if (t < static_cast<std::size_t>(vfDispSeries.nTimes()))
+      {
         vdisp = &vfDispSeries.getTime((TimeIdx)t).u;
+      }
       vfPlots[v].disp->setField(vdisp);
 
       const RaggedElemField<mat3d> *vdef = nullptr;
-      if (t < vfDefSeries.nTimes())
+      if (vfPlots[v].defSingle)
+      {
+        if (vfDefSeries.nTimes() > 0)
+          vdef = &vfDefSeries.getTime((TimeIdx)0).F;
+      }
+      else if (t < static_cast<std::size_t>(vfDefSeries.nTimes()))
+      {
         vdef = &vfDefSeries.getTime((TimeIdx)t).F;
+      }
       vfPlots[v].def->setField(vdef);
     }
 

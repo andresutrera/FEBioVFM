@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <febio_optimize version="2.0">
   <Options>
-    <plane_deformation>False</plane_deformation>
+    <plane_deformation>True</plane_deformation>
   </Options>
   <Optimization type="constrained levmar">
     <grad_tol>0.01</grad_tol>
