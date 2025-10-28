@@ -41,7 +41,11 @@ Options define a plane-deformation reduction so the virtual work assemblers cons
 </Optimization>
 ```
 
-Optimization method and tolerances options. There are two optimizers available: `levmar` and  `constrained levmar`. The latest, uses parameter bounds defined in the parameter section. `levmar` ignores those bounds if defined.
+Supported `type` values are `levmar` (unconstrained) and `constrained levmar`
+(default). The optional child tags override the Levenberg–Marquardt parameters
+`[τ, ε₁, ε₂, ε₃, δ]`; omitted entries fall back to the code defaults. When the
+unconstrained solver is selected the parameter bounds from the `<Parameters>`
+section are ignored. The optional `<max_iter>` tag limits the maximum LM iterations.
 
 ```xml
 <Parameters>
@@ -145,26 +149,6 @@ The code is organised around a small number of data-carrier classes (`state/`, `
      - Cauchy stress and First Piola stress per element.
      - For each virtual field: displacement and deformation gradient histories.
 
-### Solver Options
-
-The optimisation XML may provide an optional
-
-```
-<Options type="constrained levmar">
-  <tau>1e-3</tau>
-  <grad_tol>1e-12</grad_tol>
-  <step_tol>1e-12</step_tol>
-  <obj_tol>1e-15</obj_tol>
-  <f_diff_scale>-1</f_diff_scale>
-  <max_iter>200</max_iter>
-</Options>
-```
-
-block. Supported `type` values are `levmar` (unconstrained) and `constrained levmar`
-(default). The optional child tags override the Levenberg–Marquardt parameters
-`[τ, ε₁, ε₂, ε₃, δ]`; omitted entries fall back to the code defaults. When the
-unconstrained solver is selected the parameter bounds from the `<Parameters>`
-section are ignored. The optional `<max_iter>` tag limits the maximum LM iterations.
 
 ## Data Containers
 
