@@ -8,7 +8,7 @@
     <step_tol>0.01</step_tol>
     <obj_tol>0.01</obj_tol>
     <f_diff_scale>0.01</f_diff_scale>
-    <max_iter>1</max_iter>
+    <max_iter>100</max_iter>
   </Optimization>
   <Parameters>
     <param name="fem.material[0].c1">2, 0,500</param>
