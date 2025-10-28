@@ -13,7 +13,7 @@ cmake -Dname=VFM ..
 make install
 ```
 
-## FEBio Task Invocation
+## FEBio Task Usage
 
 ```bash
 febio4 -i FEModel.feb -task="VFM" VFMData.feb
