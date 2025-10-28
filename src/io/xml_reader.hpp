@@ -44,6 +44,8 @@ struct XMLInput {
         Entry objTol;
         Entry diffScale;
         Entry maxIters;
+        bool planeDeformation = false;
+        bool planeDeformationSet = false;
     } options;
 };
 

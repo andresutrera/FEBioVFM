@@ -83,7 +83,8 @@ bool prepare_vfm_problem(FEModel &fem,
   // kinematics
   FEBioShapeProvider shp(problem.conn);
   std::string kinErr;
-  Kinematics::compute_measured(problem.quad, shp, problem.state.measured, problem.state.def, true, kinErr);
+  const bool planeDef = problem.solverOptions.planeDeformationSet ? problem.solverOptions.planeDeformation : false;
+  Kinematics::compute_measured(problem.quad, shp, problem.state.measured, problem.state.def, planeDef, true, kinErr);
   Kinematics::compute_virtuals(problem.quad, shp, problem.state.virtuals, problem.state.vdef, true, kinErr);
   if (!kinErr.empty())
   {

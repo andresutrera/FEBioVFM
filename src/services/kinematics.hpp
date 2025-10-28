@@ -11,6 +11,7 @@ namespace Kinematics {
     // Assemble F(t,e,g) from measured nodal u
     bool compute_measured (const MeshQuad& quad, const IShapeProvider& shp,
                            const MeasuredData& U, Deformations& Fout,
+                           bool planeDeformation,
                            bool checkDet, std::string& err);
 
     // Assemble F_v(v,t,e,g) from virtual nodal u
