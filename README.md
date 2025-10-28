@@ -2,6 +2,104 @@
 
 UNDER DEVELOPMENT
 
+## Installation
+
+```bash
+git clone https://github.com/andresutrera/FEBioVFM/
+cd FEBioVFM
+mkdir -p build
+cd build
+cmake -Dname=VFM ..
+make install
+```
+
+## FEBio Task Invocation
+
+```bash
+febio4 -i FEModel.feb -task="VFM" VFMData.feb
+```
+
+## VFMData Snapshot
+
+This section explains how to build ne data file needed by the VFM Task plugin.
+
+```xml
+<Options>
+  <plane_deformation>True</plane_deformation>
+</Options>
+```
+
+Options define a plane-deformation reduction so the virtual work assemblers constrain the measured kinematics to be in-plane (for now, just xy is supported).
+
+```xml
+<Optimization type="constrained levmar">
+  <grad_tol>0.01</grad_tol>
+  <step_tol>0.01</step_tol>
+  <obj_tol>0.01</obj_tol>
+  <f_diff_scale>0.01</f_diff_scale>
+  <max_iter>200</max_iter>
+</Optimization>
+```
+
+Optimization method and tolerances options. There are two optimizers available: `levmar` and  `constrained levmar`. The latest, uses parameter bounds defined in the parameter section. `levmar` ignores those bounds if defined.
+
+```xml
+<Parameters>
+  <param name="fem.material[0].c1">2, 0, 500</param>
+  <param name="fem.material[0].c2">0.2, 0, 2</param>
+</Parameters>
+```
+
+This section targets the model parameters to be optimized. Each entry lists the initial guess followed by lower and upper bounds.
+
+```xml
+<MeasuredDisplacements>
+  <time t="0">
+    <node id="1">0,0,0</node>
+    …
+  </time>
+  …
+  <time t="21">
+    <node id="1331">0,1.8,0</node>
+  </time>
+</MeasuredDisplacements>
+```
+
+The `MeasuredDisplacements` section provides measured nodal motions for any number of time frames and mesh nodes.
+
+```xml
+<VirtualDisplacements>
+  <virtualdisplacement field="1">
+    <time t="0">
+      <node id="1">0,0,0</node>
+      …
+    </time>
+    …
+    <time t="21">
+      <node id="1331">0,1.8,0</node>
+    </time>
+  </virtualdisplacement>
+</VirtualDisplacements>
+```
+
+The `VirtualDisplacements` section allows to define a number (n) of time-dependent virtual fields in the mesh: `vF_n(t,node)`.
+
+```xml
+<MeasuredLoads>
+  <time t="1">
+    <surface id="PrescribedDisplacement2">-0,0,0</surface>
+    <surface id="PrescribedDisplacement3">0,-0,0</surface>
+  </time>
+  …
+  <time t="21">
+    <surface id="PrescribedDisplacement2">28.1863,0,0</surface>
+    <surface id="PrescribedDisplacement3">0,28.1863,0</surface>
+  </time>
+</MeasuredLoads>
+```
+
+This section captures the measured reaction forces applied on the boundary surfaces paired to the displacement control. Each time frame aligns with the displacement history to populate the external virtual work vector. Those surfaces needs to be defined in the input model.
+
 ## Architecture Overview
 
 ```
