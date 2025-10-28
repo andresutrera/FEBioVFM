@@ -1,5 +1,6 @@
 #include "optimization/vfm_problem.hpp"
 #include <algorithm>
+#include <cctype>
 #include <vector>
 #include <FECore/FEModel.h>
 #include <FECore/FEMaterial.h>
@@ -55,6 +56,26 @@ bool prepare_vfm_problem(FEModel &fem,
   problem.reset();
   problem.fem = &fem;
 
+  problem.solverOptions = input.options;
+  if (problem.solverOptions.saveVirtualWorkSet)
+  {
+    const std::string &path = problem.solverOptions.saveVirtualWork;
+    const std::size_t dot = path.find_last_of('.');
+    bool validExt = false;
+    if (dot != std::string::npos)
+    {
+      std::string ext = path.substr(dot);
+      std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c)
+                     { return static_cast<char>(std::tolower(c)); });
+      validExt = (ext == ".txt");
+    }
+    if (!validExt)
+    {
+      err = "Options/save_virtual_work must use a .txt extension.";
+      return false;
+    }
+  }
+
   {
     DataStore &dataStore = fem.GetDataStore();
     const int removedDataRecords = dataStore.Size();
@@ -107,7 +128,6 @@ bool prepare_vfm_problem(FEModel &fem,
     return false;
   if (!VFMLoader::load_params(input, problem.state, err))
     return false;
-  problem.solverOptions = input.options;
 
   feLog("Success loading input data.\n");
 

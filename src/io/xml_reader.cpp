@@ -34,6 +34,26 @@ static bool parse_bool_tag_value(XMLTag &tag)
     throw XMLReader::InvalidTag(tag);
 }
 
+static std::string parse_trimmed_tag_value(XMLTag &tag)
+{
+    const char *sz = tag.szvalue();
+    if (sz == nullptr)
+        throw XMLReader::InvalidTag(tag);
+
+    std::string text(sz);
+    auto notSpace = [](unsigned char ch)
+    { return std::isspace(ch) == 0; };
+
+    auto first = std::find_if(text.begin(), text.end(), notSpace);
+    auto last = std::find_if(text.rbegin(), text.rend(), notSpace).base();
+    if (first < last)
+        text.assign(first, last);
+    else
+        text.clear();
+
+    return text;
+}
+
 static void ParseParameters(XMLTag &tag, XMLInput &out)
 {
     ++tag;
@@ -69,6 +89,23 @@ static void ParseGeneralOptions(XMLTag &tag, XMLInput &out)
             const bool value = parse_bool_tag_value(child);
             out.options.planeDeformation = value;
             out.options.planeDeformationSet = true;
+        }
+        else if (child == "save_virtual_work")
+        {
+            const std::string value = parse_trimmed_tag_value(child);
+            std::string lower = value;
+            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c)
+                           { return static_cast<char>(std::tolower(c)); });
+            if (!lower.empty() && lower == "false")
+            {
+                out.options.saveVirtualWork.clear();
+                out.options.saveVirtualWorkSet = false;
+            }
+            else
+            {
+                out.options.saveVirtualWork = value;
+                out.options.saveVirtualWorkSet = !value.empty();
+            }
         }
         else
             throw XMLReader::InvalidTag(child);

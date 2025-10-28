@@ -2,6 +2,7 @@
 <febio_optimize version="2.0">
   <Options>
     <plane_deformation>True</plane_deformation>
+    <save_virtual_work>work.txt</save_virtual_work>
   </Options>
   <Optimization type="constrained levmar">
     <grad_tol>0.01</grad_tol>

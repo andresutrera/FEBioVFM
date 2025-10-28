@@ -46,6 +46,8 @@ struct XMLInput {
         Entry maxIters;
         bool planeDeformation = false;
         bool planeDeformationSet = false;
+        std::string saveVirtualWork;
+        bool saveVirtualWorkSet = false;
     } options;
 };
 

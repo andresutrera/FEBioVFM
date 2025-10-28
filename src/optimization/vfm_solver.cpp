@@ -14,6 +14,7 @@
 #include <array>
 #include <atomic>
 #include <csignal>
+#include <fstream>
 #include <iomanip>
 #include <sstream>
 
@@ -418,6 +419,84 @@ bool solve_vfm_problem(VFMProblem &problem,
     feLog("Internal virtual work (size=%zu):\n", iw.size());
     for (std::size_t i = 0; i < iw.size(); ++i)
         feLog("  ivw[%zu] = %.6e\n", i, iw[i]);
+
+    if (problem.solverOptions.saveVirtualWorkSet && !problem.solverOptions.saveVirtualWork.empty())
+    {
+        const std::size_t vfCount = problem.state.virtuals.nVF();
+        const std::size_t iwSize = iw.size();
+        const std::size_t ewSize = ew.size();
+
+        if (vfCount == 0 || iwSize == 0 || ewSize == 0)
+        {
+            feLogWarning("Virtual work export requested, but no data available.\n");
+        }
+        else if (iwSize != ewSize)
+        {
+            err = "internal/external virtual work size mismatch.";
+            return false;
+        }
+        else if (iwSize % vfCount != 0)
+        {
+            err = "virtual work data size is not divisible by the number of virtual fields.";
+            return false;
+        }
+        else
+        {
+            const std::size_t timeCount = iwSize / vfCount;
+            const std::size_t loadTimes = problem.state.loads.nTimes();
+            const bool haveLoadTimes = loadTimes == timeCount && timeCount > 0;
+
+            std::ofstream out(problem.solverOptions.saveVirtualWork);
+            if (!out)
+            {
+                err = "failed to open virtual work output file: " + problem.solverOptions.saveVirtualWork;
+                return false;
+            }
+
+            out.setf(std::ios::scientific);
+            out << std::setprecision(6);
+
+            out << "#Step";
+            for (std::size_t v = 0; v < vfCount; ++v)
+                out << ", IVW" << (v + 1);
+            for (std::size_t v = 0; v < vfCount; ++v)
+                out << ", EVW" << (v + 1);
+            out << '\n';
+
+            for (std::size_t t = 0; t < timeCount; ++t)
+            {
+                if (haveLoadTimes)
+                {
+                    const auto &frame = problem.state.loads.frame(static_cast<TimeIdx>(t));
+                    out << frame.time;
+                }
+                else
+                {
+                    out << "t" << t;
+                }
+
+                for (std::size_t v = 0; v < vfCount; ++v)
+                {
+                    const std::size_t idx = v * timeCount + t;
+                    out << ", " << iw[idx];
+                }
+                for (std::size_t v = 0; v < vfCount; ++v)
+                {
+                    const std::size_t idx = v * timeCount + t;
+                    out << ", " << ew[idx];
+                }
+                out << '\n';
+            }
+
+            if (!out.good())
+            {
+                err = "failed while writing virtual work output file: " + problem.solverOptions.saveVirtualWork;
+                return false;
+            }
+
+            feLog("Virtual work saved to %s\n", problem.solverOptions.saveVirtualWork.c_str());
+        }
+    }
 
     feLog("\n");
     diag::printers::ParameterTable(problem.state.params, "FINAL PARAMETERS", 6);
